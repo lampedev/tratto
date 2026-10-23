@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="18 18 72 72">
+  <!-- Stessa icona dell'app (res/drawable/ic_launcher_foreground.xml) su fondo #F4EFE6 -->
+  <rect x="18" y="18" width="72" height="72" rx="16" fill="#F4EFE6"/>
+  <g transform="rotate(-8 50 52)">
+    <path fill="#FFFFFF" stroke="#E3DCCF" stroke-width="1.2"
+      d="M31,25 h28 a4,4 0 0 1 4,4 v40 a4,4 0 0 1 -4,4 h-28 a4,4 0 0 1 -4,-4 v-40 a4,4 0 0 1 4,-4 z"/>
+    <path fill="none" stroke="#2F4A6D" stroke-width="1.4" stroke-linecap="round"
+      d="M33,37 H56 M33,44 H56 M33,51 H52 M33,58 H46"/>
+    <path fill="none" stroke="#2F4A6D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+      d="M34,31 c3,-3 5,3 8,0 s5,3 8,0"/>
+  </g>
+  <path fill="none" stroke="#D97757" stroke-width="3.2" stroke-linecap="round"
+    d="M67.18,65.31 L78.47,66.89 M66.73,66.35 L73.51,71.65 M65.82,67.04 L69.79,76.87 M64.69,67.18 L63.61,74.90 M63.65,66.73 L56.38,76.03 M62.96,65.82 L54.62,69.20 M62.82,64.69 L51.93,63.16 M63.27,63.65 L56.80,58.60 M64.18,62.96 L59.91,52.39 M65.31,62.82 L66.39,55.10 M66.35,63.27 L72.63,55.23 M67.04,64.18 L75.38,60.80"/>
+</svg>

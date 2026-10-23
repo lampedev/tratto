@@ -1,0 +1,141 @@
+package com.caro.tratto
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.caro.tratto.data.NotebookRepository
+import com.caro.tratto.ui.EditorScreen
+import com.caro.tratto.ui.LibraryScreen
+import com.caro.tratto.ui.TrattoTheme
+
+class MainActivity : ComponentActivity() {
+
+    /** PDF arrivato da un'altra app ("Apri con" / "Condividi"): la libreria lo importa e lo apre. */
+    private var incomingPdf by mutableStateOf<Uri?>(null)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        requestMaxRefreshRate()
+        if (savedInstanceState == null) incomingPdf = pdfFrom(intent)
+        val repository = NotebookRepository(applicationContext)
+        setContent {
+            TrattoTheme {
+                var openId by rememberSaveable { mutableStateOf<String?>(null) }
+                var openPage by rememberSaveable { mutableStateOf(0) }
+                var recentView by rememberSaveable { mutableStateOf(false) }
+                var libraryVersion by remember { mutableStateOf(0) }
+                var folder by rememberSaveable { mutableStateOf<String?>(null) }
+                var favoritesView by rememberSaveable { mutableStateOf(false) }
+                var search by rememberSaveable { mutableStateOf<String?>(null) }
+                var tagView by rememberSaveable { mutableStateOf<String?>(null) }
+                // arrivo da un collegamento: pagina per id e punto; pila dei ritorni "quaderno|pagina"
+                var openPageId by rememberSaveable { mutableStateOf<String?>(null) }
+                var openPointX by rememberSaveable { mutableStateOf(Float.NaN) }
+                var openPointY by rememberSaveable { mutableStateOf(Float.NaN) }
+                var linkBack by rememberSaveable { mutableStateOf("") }
+                fun open(id: String, page: Int, pageId: String? = null, x: Float = Float.NaN, y: Float = Float.NaN) {
+                    openPage = page
+                    openPageId = pageId
+                    openPointX = x
+                    openPointY = y
+                    openId = id
+                }
+                fun closeEditor() {
+                    openId = null
+                    linkBack = ""
+                    libraryVersion++
+                }
+                // un PDF in arrivo chiude l'editor (che salva uscendo) e passa dalla libreria
+                LaunchedEffect(incomingPdf) {
+                    if (incomingPdf != null && openId != null) {
+                        openId = null
+                        libraryVersion++
+                    }
+                }
+                val id = openId
+                if (id == null) {
+                    LibraryScreen(
+                        repository = repository,
+                        refreshKey = libraryVersion,
+                        currentFolder = folder,
+                        onFolderChange = { folder = it },
+                        onOpen = { open(it, 0) },
+                        onOpenPage = { id, p -> open(id, p) },
+                        recentView = recentView,
+                        onRecentView = { recentView = it },
+                        favoritesView = favoritesView,
+                        onFavoritesView = { favoritesView = it },
+                        search = search,
+                        onSearch = { search = it },
+                        tagView = tagView,
+                        onTagView = { tagView = it },
+                        incomingPdf = incomingPdf,
+                        onIncomingHandled = { incomingPdf = null },
+                    )
+                } else {
+                    BackHandler { closeEditor() }
+                    val back = linkBack.lines().lastOrNull { it.isNotEmpty() }
+                    // un quaderno diverso = un editor nuovo (lo stato non passa da un quaderno all'altro)
+                    key(id) {
+                        EditorScreen(
+                            repository = repository,
+                            notebookId = id,
+                            onBack = { closeEditor() },
+                            startPage = openPage,
+                            startPageId = openPageId,
+                            startPoint = if (openPointX.isNaN()) null else android.graphics.PointF(openPointX, openPointY),
+                            backTo = back?.substringBefore('|'),
+                            onLinkBack = {
+                                if (back != null) {
+                                    linkBack = linkBack.lines().filter { it.isNotEmpty() }.dropLast(1).joinToString("\n")
+                                    open(back.substringBefore('|'), back.substringAfter('|').toIntOrNull() ?: 0)
+                                }
+                            },
+                            onOpenLink = { fromPage, target, pageId, pageIndex, point ->
+                                if (repository.list().none { it.id == target }) {
+                                    android.widget.Toast.makeText(this@MainActivity, "Il quaderno collegato non c'è più", android.widget.Toast.LENGTH_LONG).show()
+                                } else {
+                                    linkBack = (linkBack.lines().filter { it.isNotEmpty() } + "$id|$fromPage").takeLast(20).joinToString("\n")
+                                    open(target, pageIndex, pageId, point?.x ?: Float.NaN, point?.y ?: Float.NaN)
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        pdfFrom(intent)?.let { incomingPdf = it }
+    }
+
+    private fun pdfFrom(intent: Intent?): Uri? = when (intent?.action) {
+        Intent.ACTION_VIEW -> intent.data
+        Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        else -> null
+    }
+
+    /** Il tratto segue la penna a ogni refresh: chiediamo il modo display più veloce (90 Hz sul Tab S9 FE). */
+    private fun requestMaxRefreshRate() {
+        val display = display ?: return
+        val current = display.mode
+        val best = display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+            .maxByOrNull { it.refreshRate } ?: return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
+    }
+}

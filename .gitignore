@@ -1,0 +1,41 @@
+# --- Gradle / build ---
+build/
+*/build/
+.gradle/
+.kotlin/
+captures/
+.cxx/
+.externalNativeBuild/
+local.properties
+
+# --- Android Studio / IntelliJ ---
+.idea/
+*.iml
+*.hprof
+
+# --- Firme e credenziali: MAI nel repo ---
+*.jks
+*.keystore
+*.p12
+keystore.properties
+signing.properties
+secrets.properties
+.env
+.env.*
+
+# --- Artefatti compilati ---
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+versions/
+
+# --- Documento di lavoro interno, non pubblico ---
+CONTRACTS.md
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+*~
