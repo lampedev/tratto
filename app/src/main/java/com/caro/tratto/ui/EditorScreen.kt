@@ -118,22 +118,34 @@ fun EditorScreen(
     var exporting by remember { mutableStateOf(false) }
     var showSetup by remember { mutableStateOf(false) }
     var fingerDrawing by remember { mutableStateOf(prefs.fingerDrawing) }
-    // schermo intero: via la barra di stato (ora, batteria) mentre si scrive; si rivede scorrendo dal bordo
+    // schermo intero: via la barra di stato (ora, batteria) e quella in basso mentre si scrive; si rivedono scorrendo dal bordo
     var fullscreen by remember { mutableStateOf(prefs.fullscreen) }
     val activity = context as? android.app.Activity
-    DisposableEffect(fullscreen) {
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(fullscreen, lifecycle) {
         val window = activity?.window
         val bars = window?.let { androidx.core.view.WindowCompat.getInsetsController(it, it.decorView) }
-        if (bars != null) {
+        val types = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+        fun apply() {
+            if (bars == null) return
             if (fullscreen) {
                 bars.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                bars.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                bars.hide(types)
             } else {
-                bars.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                bars.show(types)
             }
         }
-        // uscendo dal foglio la barra di stato torna sempre
-        onDispose { bars?.show(androidx.core.view.WindowInsetsCompat.Type.statusBars()) }
+        apply()
+        // tornando nell'app (multitasking, schermo spento) le barre possono riapparire: si nascondono di nuovo
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) apply()
+        }
+        lifecycle.addObserver(observer)
+        // uscendo dal foglio le barre tornano sempre
+        onDispose {
+            lifecycle.removeObserver(observer)
+            bars?.show(types)
+        }
     }
     var eraserPartial by remember { mutableStateOf(prefs.eraserPartial) }
     var penPressure by remember { mutableIntStateOf(prefs.penPressure) }

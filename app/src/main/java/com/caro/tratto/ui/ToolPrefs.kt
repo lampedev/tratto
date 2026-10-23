@@ -132,10 +132,13 @@ internal class ToolPrefs(context: Context) {
         get() = prefs.getBoolean("shape_recognition", true)
         set(value) = prefs.edit { putBoolean("shape_recognition", value) }
 
-    /** Schermo intero nel foglio: senza la barra di stato del tablet (ora, batteria). */
+    /**
+     * Schermo intero nel foglio: senza la barra di stato (ora, batteria) né quella in basso. Acceso di serie dalla 0.43
+     * (chiave nuova, così vale anche per chi aveva la vecchia "fullscreen" spenta).
+     */
     var fullscreen: Boolean
-        get() = prefs.getBoolean("fullscreen", false)
-        set(value) = prefs.edit { putBoolean("fullscreen", value) }
+        get() = prefs.getBoolean("immersive", true)
+        set(value) = prefs.edit { putBoolean("immersive", value) }
 
     var fingerDrawing: Boolean
         get() = prefs.getBoolean("finger_drawing", false)

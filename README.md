@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-0.42-D97757)
+![Versione](https://img.shields.io/badge/versione-0.43-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -75,7 +75,7 @@ qualsiasi tablet Android 14+ con un pennino.
 - **Lazo**: sposta, ridimensiona, ricolora, duplica, elimina, copia e incolla, anche fra quaderni diversi. Funziona anche su foto e immagini.
 - **Forme automatiche**: tieni premuto alla fine del tratto, oppure attiva la modalità Forme. Ci sono anche la **linea dritta**, che si aggancia a 0°, 45° e 90°, e il blocco dello zoom.
 - Foto dalla galleria e immagini incollate da altre app.
-- Annulla e ripeti, una sola barra compatta in alto e la modalità **schermo intero**.
+- Annulla e ripeti, una sola barra compatta in alto e lo **schermo intero** (senza ora né barra in basso, acceso di serie).
 
 ### 📄 Fogli
 - A4 verticale e orizzontale.
@@ -214,7 +214,7 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **0.42**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **0.43**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
 - caselle di testo;
