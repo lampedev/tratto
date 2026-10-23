@@ -16,11 +16,30 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 
 </div>
 
-<!-- Immagini provvisorie: verranno affiancate dagli screenshot dell'app. -->
+<p align="center">
+  <img src="docs/img/screen-libreria.jpg" width="100%" alt="La libreria: cartelle colorate e quaderni con la copertina della prima pagina">
+</p>
+
+<table>
+  <tr>
+    <td width="25%"><img src="docs/img/screen-foglio.jpg" alt="Il foglio con la barra degli strumenti"></td>
+    <td width="25%"><img src="docs/img/screen-penna.jpg" alt="Opzioni della penna: tipo, spessore, pressione, stabilizzazione, colori"></td>
+    <td width="25%"><img src="docs/img/screen-menu.jpg" alt="Il menu del foglio"></td>
+    <td width="25%"><img src="docs/img/screen-nuovo-quaderno.jpg" alt="Nuovo quaderno: formato, motivo e colore della carta"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Il foglio, con una sola barra</sub></td>
+    <td align="center"><sub>Penne, pressione e stabilizzazione</sub></td>
+    <td align="center"><sub>Il menu ⋮ del foglio</sub></td>
+    <td align="center"><sub>Formato, motivo e colore della carta</sub></td>
+  </tr>
+</table>
+
 <p align="center">
   <img src="docs/img/onde-energia.jpg" width="32%" alt="Pagina a quadretti su carta blu: energia trasportata dalle onde">
   <img src="docs/img/onde-meccaniche.jpg" width="32%" alt="Pagina a quadretti su carta bianca: onde meccaniche, con un'immagine inserita">
   <img src="docs/img/redox.jpg" width="32%" alt="Pagina a quadretti su carta nera: potenziale redox standard">
+  <br><sub>Pagine di appunti su carta blu, bianca e nera (OLED)</sub>
 </p>
 
 ---
