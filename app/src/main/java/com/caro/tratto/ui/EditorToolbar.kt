@@ -131,8 +131,8 @@ internal class ToolbarActions(
 
 /**
  * Barra in alto stile Samsung Notes, una riga sola e bassa (più spazio per scrivere): indietro,
- * annulla, ripeti; strumenti, colori e spessori rapidi (scorrono se non ci stanno); modalità
- * (forme, linea dritta, blocca zoom) in un menu; numero di pagina; ⋮ con segnalibri, pagine, export.
+ * annulla, ripeti; strumenti, colori e spessori rapidi (scorrono se non ci stanno); forme, linea
+ * dritta e blocca zoom a un tocco; numero di pagina; ⋮ con segnalibri, pagine, export.
  */
 @Composable
 internal fun EditorToolbar(state: ToolbarState, actions: ToolbarActions, modifier: Modifier = Modifier) {
@@ -140,7 +140,7 @@ internal fun EditorToolbar(state: ToolbarState, actions: ToolbarActions, modifie
         Row(Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             NavGroup(state, actions)
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { ToolsGroup(state, actions) }
-            ModesButton(state, actions)
+            ModeToggles(state, actions)
             PageIndicator(state.page, state.pageCount, state.pageBookmarked, actions.onShowPages)
             MoreMenu(state, actions)
         }
@@ -175,34 +175,14 @@ private fun ToolsGroup(state: ToolbarState, actions: ToolbarActions) {
     }
 }
 
-/** Forme, linea dritta, blocca zoom: un pulsante (acceso se una è attiva) con le tre voci. */
+/** Forme, linea dritta (righello), blocca zoom (lucchetto): un tocco le accende o spegne, accese restano evidenziate. */
 @Composable
-private fun ModesButton(state: ToolbarState, actions: ToolbarActions) {
-    var open by remember { mutableStateOf(false) }
-    val any = state.shapeMode || state.lineMode || state.zoomLocked
-    val icon = when {
-        state.lineMode && !state.shapeMode -> TrattoIcons.Ruler
-        state.zoomLocked && !state.shapeMode && !state.lineMode -> TrattoIcons.Lock
-        else -> TrattoIcons.Shapes
+private fun ModeToggles(state: ToolbarState, actions: ToolbarActions) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ToolbarIcon(TrattoIcons.Shapes, "Forme", selected = state.shapeMode, onClick = actions.onToggleShapeMode)
+        ToolbarIcon(TrattoIcons.Ruler, "Linea dritta", selected = state.lineMode, onClick = actions.onToggleLineMode)
+        ToolbarIcon(TrattoIcons.Lock, "Blocca zoom", selected = state.zoomLocked, onClick = actions.onToggleZoomLock)
     }
-    Box {
-        ToolbarIcon(icon, "Forme, linea dritta, blocca zoom", selected = any, onClick = { open = true })
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            ModeItem(TrattoIcons.Shapes, "Forme", state.shapeMode) { open = false; actions.onToggleShapeMode() }
-            ModeItem(TrattoIcons.Ruler, "Linea dritta", state.lineMode) { open = false; actions.onToggleLineMode() }
-            ModeItem(TrattoIcons.Lock, "Blocca zoom", state.zoomLocked) { open = false; actions.onToggleZoomLock() }
-        }
-    }
-}
-
-@Composable
-private fun ModeItem(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(label) },
-        leadingIcon = { Icon(icon, null, tint = if (on) InkBlue else MaterialTheme.colorScheme.onSurface) },
-        trailingIcon = { if (on) Icon(TrattoIcons.Check, null, tint = InkBlue) },
-        onClick = onClick,
-    )
 }
 
 /** Strumento a cui si applicano colori e spessori rapidi: quello attivo se scrive, altrimenti l'ultima penna. */
