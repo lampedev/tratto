@@ -36,6 +36,20 @@ class ImageLoader(private val fileFor: (String) -> File, private val maxSide: In
     companion object {
         private val decoder = Executors.newSingleThreadExecutor()
 
+        /** Formati che Tratto usa solo per immagini senza trasparenza (le WebP le scrive così l'import). */
+        private val OPAQUE_EXTENSIONS = setOf("jpg", "jpeg", "webp")
+
+        /** Vero se nessun pixel è trasparente: molti PNG (gli screenshot) hanno il canale alfa ma tutto pieno. */
+        fun isOpaque(bmp: Bitmap): Boolean {
+            if (!bmp.hasAlpha()) return true
+            val row = IntArray(bmp.width)
+            for (y in 0 until bmp.height) {
+                bmp.getPixels(row, 0, bmp.width, 0, y, bmp.width, 1)
+                for (c in row) if (c ushr 24 != 0xFF) return false
+            }
+            return true
+        }
+
         /**
          * Decodifica con campionamento a potenze di 2 fino a stare sotto [maxSide].
          * Le foto JPEG (senza trasparenza) in RGB_565: metà memoria, e nel PDF nessun canale alfa.
@@ -48,7 +62,7 @@ class ImageLoader(private val fileFor: (String) -> File, private val maxSide: In
             while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
             val opts = BitmapFactory.Options().apply {
                 inSampleSize = sample
-                if (file.extension.equals("jpg", true) || file.extension.equals("jpeg", true)) {
+                if (file.extension.lowercase() in OPAQUE_EXTENSIONS) {
                     inPreferredConfig = Bitmap.Config.RGB_565
                 }
             }

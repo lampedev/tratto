@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-0.44-D97757)
+![Versione](https://img.shields.io/badge/versione-0.45-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -74,7 +74,7 @@ qualsiasi tablet Android 14+ con un pennino.
 - Gomma che cancella il tratto intero oppure solo la parte toccata.
 - **Lazo**: sposta, ridimensiona, ricolora, duplica, elimina, copia e incolla, anche fra quaderni diversi. Funziona anche su foto e immagini.
 - **Forme automatiche**: tieni premuto alla fine del tratto, oppure attiva la modalità Forme. Ci sono anche la **linea dritta**, che si aggancia a 0°, 45° e 90°, e il blocco dello zoom.
-- Foto dalla galleria e immagini incollate da altre app.
+- Foto dalla galleria e immagini incollate da altre app, salvate in WebP (PNG solo se hanno parti trasparenti).
 - Annulla e ripeti, una sola barra compatta in alto e lo **schermo intero** (senza ora né barra in basso, acceso di serie).
 
 ### 📄 Fogli
@@ -125,7 +125,8 @@ tratto Ink ──► contorno (androidx.ink) ──► android.graphics.Path ─
 Ogni tratto viene salvato con i suoi punti di input, cioè posizione, pressione e tempo. In esportazione Ink ne calcola il
 contorno e il contorno diventa un tracciato PDF: la nitidezza non dipende da alcuna risoluzione. Lo script
 [`scripts/check_pdf_vector.py`](scripts/check_pdf_vector.py) verifica che un PDF esportato non contenga immagini, a parte
-le foto inserite di proposito.
+le foto inserite di proposito. Quelle vanno nel PDF in JPEG alla risoluzione che serve (200 dpi alla misura con cui sono
+posate): il PDF di Android le salverebbe senza perdita, tre volte più pesanti.
 
 ## Installazione
 
@@ -214,7 +215,7 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **0.44**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **0.45**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
 - caselle di testo;

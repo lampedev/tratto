@@ -91,6 +91,11 @@ object Exporter {
             pdf.close()
             images.recycle()
         }
+        // foto in JPEG invece che senza perdita: un errore qui lascia il PDF com'è, solo più pesante
+        if (indices.any { doc.pages.getOrNull(it)?.images?.isNotEmpty() == true }) {
+            runCatching { PdfImages.compress(context, file) }
+                .onFailure { android.util.Log.w("Tratto", "foto del PDF in JPEG", it) }
+        }
     }
 
     /** PNG della pagina a `dpi` punti per pollice (300 = qualità stampa). */

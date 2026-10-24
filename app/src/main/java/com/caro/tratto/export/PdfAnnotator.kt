@@ -6,6 +6,7 @@ import android.graphics.Path
 import android.graphics.PathIterator
 import android.graphics.RectF
 import androidx.ink.geometry.populateOutlines
+import com.caro.tratto.data.ImageLoader
 import com.caro.tratto.data.PdfPages
 import com.caro.tratto.ink.Brushes
 import com.caro.tratto.model.NoteStroke
@@ -107,7 +108,7 @@ internal object PdfAnnotator {
             cs.transform(Matrix(1f / k, 0f, 0f, 1f / k, -fit.left / k, -fit.top / k))
             for (img in page.images) {
                 val bmp = images(img) ?: continue
-                val x = if (bmp.hasAlpha()) LosslessFactory.createFromImage(pdf, bmp) else JPEGFactory.createFromImage(pdf, bmp, 0.9f)
+                val x = if (bmp.hasAlpha() && !ImageLoader.isOpaque(bmp)) LosslessFactory.createFromImage(pdf, bmp) else JPEGFactory.createFromImage(pdf, bmp, 0.85f)
                 cs.saveGraphicsState()
                 cs.transform(Matrix(img.w, 0f, 0f, -img.h, img.x, img.y + img.h))   // l'immagine non va capovolta
                 cs.drawImage(x, 0f, 0f, 1f, 1f)

@@ -199,7 +199,7 @@ class NotebookRepository(context: Context) {
      * Copia un'immagine scelta dall'utente dentro il quaderno, ridotta a [maxSide] px sul lato lungo.
      * Ritorna (nome file, larghezza px, altezza px) o null se non leggibile.
      */
-    fun importImage(context: Context, id: String, uri: android.net.Uri, maxSide: Int = 2400): Triple<String, Int, Int>? = runCatching {
+    fun importImage(context: Context, id: String, uri: android.net.Uri, maxSide: Int = 2048): Triple<String, Int, Int>? = runCatching {
         val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
         val bmp = android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
             val s = maxOf(info.size.width, info.size.height)
@@ -209,11 +209,17 @@ class NotebookRepository(context: Context) {
             }
             decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
         }
-        val hasAlpha = bmp.hasAlpha()
-        val name = UUID.randomUUID().toString() + if (hasAlpha) ".png" else ".jpg"
+        // PNG solo se c'è trasparenza vera; il resto (foto, screenshot) in WebP, che pesa molto meno
+        val transparent = !ImageLoader.isOpaque(bmp)
+        val name = UUID.randomUUID().toString() + if (transparent) ".png" else ".webp"
         val file = imageFile(id, name).apply { parentFile?.mkdirs() }
         atomicWrite(file) {
-            bmp.compress(if (hasAlpha) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, 92, it)
+            if (transparent) {
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
+            } else {
+                bmp.setHasAlpha(false)   // niente piano alfa nel file
+                bmp.compress(Bitmap.CompressFormat.WEBP_LOSSY, WEBP_QUALITY, it)
+            }
         }
         Triple(name, bmp.width, bmp.height).also { bmp.recycle() }
     }.getOrNull()
@@ -479,5 +485,7 @@ class NotebookRepository(context: Context) {
         const val SOURCE_PDF = "source.pdf"
         const val IMAGES = "images"
         const val THUMB_WIDTH = 420
+        /** WebP delle foto: ~80 è indistinguibile a schermo e pesa circa un terzo di un JPEG al 92. */
+        const val WEBP_QUALITY = 80
     }
 }
