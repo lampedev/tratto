@@ -18,6 +18,12 @@ object NoteClipboard {
         private set
     val bounds = RectF()
 
+    /**
+     * Impronta degli appunti di Android al momento della copia qui: se dopo cambiano (foto copiata in
+     * un'altra app), Incolla prende quelli, perché vince sempre l'ultima cosa copiata.
+     */
+    var systemClipAtCopy: String? = null
+
     val isEmpty get() = strokes.isEmpty() && images.isEmpty()
 
     fun set(fromNotebook: String?, strokes: List<NoteStroke>, images: List<PageImage>, bounds: RectF) {

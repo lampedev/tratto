@@ -366,6 +366,15 @@ fun EditorScreen(
     }
 
     fun paste() {
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        // vince l'ultima cosa copiata: i tratti del lazo, o un'immagine copiata dopo in un'altra app
+        if (NoteClipboard.isEmpty || systemClipKey(clipboard) != NoteClipboard.systemClipAtCopy) {
+            val uri = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+            if (uri != null) {
+                importAndInsert(uri)
+                return
+            }
+        }
         if (!NoteClipboard.isEmpty) {
             val from = NoteClipboard.notebookId
             scope.launch {
@@ -382,10 +391,7 @@ fun EditorScreen(
             }
             return
         }
-        // niente negli appunti interni: proviamo un'immagine copiata da un'altra app
-        val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
-        val uri = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
-        if (uri != null) importAndInsert(uri) else scope.launch { snackbar.showSnackbar("Niente da incollare") }
+        scope.launch { snackbar.showSnackbar("Niente da incollare") }
     }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -668,7 +674,10 @@ fun EditorScreen(
                             onRecolor = { editor?.recolorSelection(it) },
                             onDuplicate = { editor?.duplicateSelection() },
                             onCopy = {
-                                if (editor?.copySelection() == true) scope.launch { snackbar.showSnackbar("Copiato: usa Incolla dal menu ⋮") }
+                                if (editor?.copySelection() == true) {
+                                    NoteClipboard.systemClipAtCopy = systemClipKey(context.getSystemService(ClipboardManager::class.java))
+                                    scope.launch { snackbar.showSnackbar("Copiato: usa Incolla dal menu ⋮") }
+                                }
                             },
                             onDelete = { editor?.deleteSelection() },
                             onDone = { editor?.clearSelection() },
@@ -905,4 +914,9 @@ fun EditorScreen(
             },
         )
     }
+}
+
+/** Impronta degli appunti di Android (quando sono stati messi, etichetta, tipi) senza leggerne il contenuto. */
+private fun systemClipKey(clipboard: ClipboardManager?): String? = clipboard?.primaryClipDescription?.let { d ->
+    "${d.timestamp}|${d.label}|" + (0 until d.mimeTypeCount).joinToString(",") { d.getMimeType(it) }
 }
