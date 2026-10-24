@@ -105,6 +105,24 @@ object TrattoIcons {
         outline("Linea dritta", "M3 17L17 3l4 4L7 21z", "M7 13l2 2", "M10 10l2 2", "M13 7l2 2")
     }
 
+    /** Grafo dei collegamenti: tre quaderni collegati fra loro. */
+    val Graph: ImageVector by lazy {
+        outline(
+            "Grafo",
+            "M6 4.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 1 1 0-5z",
+            "M18 3.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 1 1 0-5z",
+            "M12 15.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 1 1 0-5z",
+            "M8.5 6.8l7-0.6",
+            "M7.2 9.2l3.6 6.6",
+            "M16.9 8.2l-3.8 7.6",
+        )
+    }
+
+    /** Inquadra tutto: quattro angoli. */
+    val Fit: ImageVector by lazy {
+        outline("Inquadra tutto", "M4 9V4h5", "M15 4h5v5", "M20 15v5h-5", "M9 20H4v-5")
+    }
+
     /** Lucchetto (blocca zoom). */
     val Lock: ImageVector by lazy {
         outline("Blocca zoom", "M6 11h12v9H6z", "M8.5 11V8a3.5 3.5 0 0 1 7 0v3")

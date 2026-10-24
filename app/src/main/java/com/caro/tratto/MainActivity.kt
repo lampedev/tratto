@@ -16,6 +16,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.caro.tratto.data.NotebookRepository
 import com.caro.tratto.ui.EditorScreen
+import com.caro.tratto.ui.GraphScreen
 import com.caro.tratto.ui.LibraryScreen
 import com.caro.tratto.ui.TrattoTheme
 
@@ -40,6 +41,8 @@ class MainActivity : ComponentActivity() {
                 var favoritesView by rememberSaveable { mutableStateOf(false) }
                 var search by rememberSaveable { mutableStateOf<String?>(null) }
                 var tagView by rememberSaveable { mutableStateOf<String?>(null) }
+                // grafo dei collegamenti: aprendo un quaderno da lì, chiudendolo si torna al grafo
+                var graphView by rememberSaveable { mutableStateOf(false) }
                 // arrivo da un collegamento: pagina per id e punto; pila dei ritorni "quaderno|pagina"
                 var openPageId by rememberSaveable { mutableStateOf<String?>(null) }
                 var openPointX by rememberSaveable { mutableStateOf(Float.NaN) }
@@ -59,13 +62,17 @@ class MainActivity : ComponentActivity() {
                 }
                 // un PDF in arrivo chiude l'editor (che salva uscendo) e passa dalla libreria
                 LaunchedEffect(incomingPdf) {
+                    if (incomingPdf != null) graphView = false
                     if (incomingPdf != null && openId != null) {
                         openId = null
                         libraryVersion++
                     }
                 }
                 val id = openId
-                if (id == null) {
+                if (id == null && graphView) {
+                    BackHandler { graphView = false }
+                    GraphScreen(repository = repository, onBack = { graphView = false }, onOpen = { open(it, 0) })
+                } else if (id == null) {
                     LibraryScreen(
                         repository = repository,
                         refreshKey = libraryVersion,
@@ -83,6 +90,7 @@ class MainActivity : ComponentActivity() {
                         onTagView = { tagView = it },
                         incomingPdf = incomingPdf,
                         onIncomingHandled = { incomingPdf = null },
+                        onGraph = { graphView = true },
                     )
                 } else {
                     BackHandler { closeEditor() }

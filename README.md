@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-0.45-D97757)
+![Versione](https://img.shields.io/badge/versione-0.46-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -95,6 +95,7 @@ qualsiasi tablet Android 14+ con un pennino.
 - Con il lazo si seleziona una zona e si sceglie **"Collega a…"**: si sfogliano le cartelle o si cerca, poi si collega un quaderno intero oppure una sua pagina.
 - Un tocco col dito sul collegamento lo apre, e "← Torna" riporta dove eri.
 - Anche nel **PDF esportato** i collegamenti si possono cliccare. Quelli verso un altro quaderno funzionano nella copia sincronizzata, con percorsi relativi, nei lettori PDF da computer.
+- **Grafo dei collegamenti**, come quello di Obsidian: un pallino per quaderno, una linea per ogni collegamento, i colori delle materie. Le materie si raccolgono in grappoli, i pallini si trascinano e le linee li seguono come molle. Un tocco mostra i quaderni collegati, un secondo tocco apre il quaderno. Il grafo si costruisce solo dai `meta.json`, senza caricare i tratti, quindi resta leggero anche con centinaia di quaderni.
 
 ### 🗂️ Libreria
 - Cartelle annidate in 12 colori, quaderni **preferiti** sempre in cima, **tag** colorati e **ricerca** in tutte le cartelle, senza badare a maiuscole e accenti.
@@ -176,7 +177,7 @@ cd tools/inkjvm && ./gradlew run
 
 ```
 app/src/main/java/com/caro/tratto/
-├── MainActivity.kt          libreria ⇄ editor, PDF ricevuti da altre app
+├── MainActivity.kt          libreria ⇄ grafo ⇄ editor, PDF ricevuti da altre app
 ├── ink/                     pennelli (famiglie androidx.ink, pressione, stabilizzazione)
 ├── model/                   quaderno, pagine, tratti, collegamenti; motivi della carta
 ├── editor/                  EditorView: input della penna, zoom e scorrimento, una RenderNode per pagina,
@@ -185,7 +186,7 @@ app/src/main/java/com/caro/tratto/
 │                            pagine e indice dei PDF
 ├── export/                  PDF/PNG, inchiostro sui PDF importati (PdfBox), collegamenti nel PDF,
 │                            sincronizzazione su cartella (Storage Access Framework)
-└── ui/                      schermate Compose: libreria, barra dell'editor, impostazioni, dialoghi
+└── ui/                      schermate Compose: libreria, grafo, barra dell'editor, impostazioni, dialoghi
 ```
 
 ### Dove finiscono i dati
@@ -215,7 +216,7 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **0.45**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **0.46**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
 - caselle di testo;

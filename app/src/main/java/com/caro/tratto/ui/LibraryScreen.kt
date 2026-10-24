@@ -99,6 +99,8 @@ fun LibraryScreen(
     onOpenPage: (String, Int) -> Unit = { id, _ -> onOpen(id) },
     incomingPdf: android.net.Uri? = null,
     onIncomingHandled: () -> Unit = {},
+    /** Apre il grafo dei collegamenti. */
+    onGraph: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var notebooks by remember { mutableStateOf<List<NotebookMeta>?>(null) }
@@ -417,6 +419,9 @@ fun LibraryScreen(
                     modifier = Modifier.padding(top = 12.dp, start = 4.dp),
                 ) {
                     Icon(TrattoIcons.Recent, contentDescription = "Quaderni recenti", tint = if (recentView) InkBlue else LocalContentColor.current)
+                }
+                IconButton(onClick = onGraph, modifier = Modifier.padding(top = 12.dp, start = 4.dp)) {
+                    Icon(TrattoIcons.Graph, contentDescription = "Grafo dei collegamenti")
                 }
                 IconButton(
                     onClick = { if (syncTarget == null) syncIntro = true else startSync() },
