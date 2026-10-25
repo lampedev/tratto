@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-0.46-D97757)
+![Versione](https://img.shields.io/badge/versione-1.0-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -85,11 +85,19 @@ qualsiasi tablet Android 14+ con un pennino.
 - Segnalibri sulle pagine.
 
 ### 📕 PDF
-- Importa un PDF dalla libreria, oppure con "Apri con" o "Condividi" da qualsiasi app. Ogni pagina del PDF diventa una pagina del quaderno.
+- Importa uno o più PDF dalla libreria, oppure con "Apri con" o "Condividi" da qualsiasi app. Ogni pagina del PDF diventa una pagina del quaderno.
 - Si scrive, si evidenzia e si usa il lazo come su un foglio normale, e si possono inserire pagine bianche fra quelle del PDF.
 - Il PDF resta **nitido allo zoom**: oltre una certa soglia viene ridisegnata solo la zona visibile, alla risoluzione esatta.
 - **Indice del PDF** navigabile.
 - In esportazione il PDF originale resta intatto (scansioni non ricompresse, testo selezionabile, segnalibri) e l'inchiostro si aggiunge come tracciati vettoriali con [PdfBox-Android](https://github.com/TomRoush/PdfBox-Android).
+
+### 📥 Da Samsung Notes
+- In Samsung Notes si selezionano le note, si sceglie **Condividi → File di Samsung Notes** e poi Tratto; in alternativa **Importa** nella libreria permette di scegliere più file `.sdocx` e PDF insieme.
+- Le note diventano quaderni **vettoriali**, non immagini: ogni tratto torna un tratto vero, con la pressione e il colore originali, e si può modificare, selezionare col lazo ed esportare nitido.
+- Arrivano anche evidenziatori (sotto l'inchiostro), forme e linee con le frecce, foto incollate, PDF di sfondo e il motivo del foglio: righe, quadretti e puntini restano **alla stessa distanza** di Samsung Notes, quindi la scrittura cade ancora sulle righe.
+- Titolo e date restano quelli della nota. Più note insieme finiscono nella cartella «Samsung Notes»; una nota già importata non si duplica.
+- Il testo scritto con la tastiera e le registrazioni audio non si importano ancora: alla fine un riepilogo dice in quali note c'erano.
+- Il formato `.sdocx` non è pubblico: la lettura segue la documentazione del progetto [sdocx](https://github.com/twangodev/sdocx) di twangodev, verificata sui file d'esempio del suo corpus.
 
 ### 🔗 Collegamenti
 - Con il lazo si seleziona una zona e si sceglie **"Collega a…"**: si sfogliano le cartelle o si cerca, poi si collega un quaderno intero oppure una sua pagina.
@@ -177,13 +185,13 @@ cd tools/inkjvm && ./gradlew run
 
 ```
 app/src/main/java/com/caro/tratto/
-├── MainActivity.kt          libreria ⇄ grafo ⇄ editor, PDF ricevuti da altre app
+├── MainActivity.kt          libreria ⇄ grafo ⇄ editor, PDF e note Samsung ricevuti da altre app
 ├── ink/                     pennelli (famiglie androidx.ink, pressione, stabilizzazione)
 ├── model/                   quaderno, pagine, tratti, collegamenti; motivi della carta
 ├── editor/                  EditorView: input della penna, zoom e scorrimento, una RenderNode per pagina,
 │                            lazo, gomma, forme, annulla/ripeti, cerchietto in hover
 ├── data/                    archivio su file (quaderni, cartelle, tag, recenti), formato strokes.bin,
-│                            pagine e indice dei PDF
+│                            pagine e indice dei PDF, lettura delle note di Samsung Notes (.sdocx)
 ├── export/                  PDF/PNG, inchiostro sui PDF importati (PdfBox), collegamenti nel PDF,
 │                            sincronizzazione su cartella (Storage Access Framework)
 └── ui/                      schermate Compose: libreria, grafo, barra dell'editor, impostazioni, dialoghi
@@ -199,7 +207,7 @@ notebooks/<id>/strokes.bin     pagine e tratti (formato binario versionato, oggi
 notebooks/<id>/source.pdf      il PDF originale, se il quaderno nasce da un PDF
 notebooks/<id>/images/         foto inserite
 notebooks/<id>/thumb.png       copertina
-folders.json · tags.json · recent.json · sync.json
+folders.json · tags.json · recent.json · sync.json · samsung_imports.json
 ```
 
 Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
@@ -216,10 +224,10 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **0.46**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **1.0**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
-- caselle di testo;
+- caselle di testo (servirebbero anche per il testo digitato delle note di Samsung Notes);
 - aggiungere le pagine di un PDF a un quaderno esistente;
 - PDF esportati più leggeri, arrotondando le coordinate dei tracciati;
 - apertura istantanea dei quaderni molto lunghi, una pagina alla volta.
@@ -228,3 +236,4 @@ emulatore e poi sul tablet. Le prossime idee:
 
 - [androidx.ink](https://developer.android.com/jetpack/androidx/releases/ink) e [Jetpack Compose](https://developer.android.com/compose), Apache 2.0
 - [PdfBox-Android](https://github.com/TomRoush/PdfBox-Android) di Tom Roush, port di [Apache PDFBox](https://pdfbox.apache.org/), Apache 2.0
+- [sdocx](https://github.com/twangodev/sdocx) di twangodev: la documentazione del formato di Samsung Notes (`docs/reverse-engineering`) su cui si basa l'import; il codice di Tratto è scritto da zero

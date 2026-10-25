@@ -124,7 +124,93 @@ class NotebookRepository(context: Context) {
         }
     }
 
-    private fun displayName(context: Context, uri: android.net.Uri): String? = runCatching {
+    // note di Samsung Notes già importate: "creazione|modifica|titolo" → id del quaderno
+    private val samsungIndexFile = File(root.parentFile, "samsung_imports.json")
+    private val samsungLock = Any()
+
+    private fun readSamsungIndex(): JSONObject =
+        runCatching { JSONObject(samsungIndexFile.readText()) }.getOrElse { JSONObject() }
+
+    /**
+     * Esito di un file importato: il quaderno e, per Samsung Notes, cosa è rimasto fuori.
+     * [duplicate] = la stessa nota (stesse date e titolo) era già stata importata: [meta] è quel quaderno.
+     */
+    class Imported(val meta: NotebookMeta, val samsung: Boolean, val typedText: Boolean = false, val skipped: Int = 0, val duplicate: Boolean = false)
+
+    /**
+     * Importa un file condiviso o scelto: PDF o quaderno di Samsung Notes (.sdocx), riconosciuti dal
+     * contenuto e non dal nome. Lancia IOException con il motivo in italiano.
+     */
+    fun importFile(context: Context, uri: android.net.Uri, folderId: String?, onProgress: (Float) -> Unit = {}): Imported {
+        val head = ByteArray(4)
+        val n = context.contentResolver.openInputStream(uri)?.use { it.readNBytes(head, 0, 4) } ?: throw IOException("file non leggibile")
+        return when {
+            n == 4 && head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte() -> importSamsungNote(context, uri, folderId)
+            n == 4 && String(head, Charsets.US_ASCII) == "%PDF" -> Imported(importPdf(context, uri, folderId, onProgress), samsung = false)
+            displayName(context, uri)?.endsWith(".pdf", ignoreCase = true) == true -> Imported(importPdf(context, uri, folderId, onProgress), samsung = false)
+            else -> throw IOException("non è un PDF né un file di Samsung Notes")
+        }
+    }
+
+    /**
+     * Nuovo quaderno da un file di Samsung Notes: tratti vettoriali (come scritti, con la pressione),
+     * forme, evidenziatori, immagini e PDF di sfondo; titolo e date restano quelli della nota.
+     */
+    fun importSamsungNote(context: Context, uri: android.net.Uri, folderId: String?): Imported {
+        val id = UUID.randomUUID().toString()
+        val dir = dirOf(id).apply { mkdirs() }
+        val media = File(context.cacheDir, "sdocx-$id").apply { mkdirs() }
+        try {
+            val note = context.contentResolver.openInputStream(uri)?.use { SamsungNotes.read(it, media) }
+                ?: throw IOException("file non leggibile")
+            // condivisa due volte: si tiene il quaderno di prima (se esiste ancora)
+            val key = if (note.created > 0) "${note.created}|${note.modified}|${note.title.orEmpty()}" else null
+            val before = key?.let { k -> synchronized(samsungLock) { readSamsungIndex().optString(k) } }
+                ?.takeIf { it.isNotEmpty() && File(dirOf(it), META).exists() }
+            if (before != null) {
+                dir.deleteRecursively()
+                return Imported(readMeta(dirOf(before)), samsung = true, duplicate = true)
+            }
+            val conv = SamsungImport.convert(context, note, File(dir, SOURCE_PDF)) { f ->
+                importImage(context, id, android.net.Uri.fromFile(f))?.first
+            }
+            val now = System.currentTimeMillis()
+            val fileName = displayName(context, uri)
+                ?.replace(Regex("\\.sdocx$", RegexOption.IGNORE_CASE), "")
+                ?.replace(Regex("_\\d{6}_\\d{6}(_\\d+)?$"), "")   // data e ora che Samsung aggiunge al nome
+                ?.replace('_', ' ')
+            val meta = NotebookMeta(
+                id = id,
+                title = (note.title ?: fileName)?.take(120)?.ifBlank { null } ?: "Da Samsung Notes",
+                format = conv.format,
+                style = conv.style,
+                createdAt = note.created.takeIf { it in 1..now } ?: now,
+                updatedAt = note.modified.takeIf { it in 1..now } ?: now,
+                pageCount = conv.pages.size,
+                folderId = folderId,
+                fromPdf = conv.fromPdf,
+            )
+            synchronized(lockFor(id)) {
+                atomicWrite(File(dir, STROKES)) { StrokesFile.writeRaw(it, conv.pages) }
+                writeMeta(dir, meta)
+                // copertina: basta la prima pagina
+                val first = StrokesFile.build(StrokesFile.Raw(conv.pages.take(1), complete = true), 2).pages
+                writeThumbnail(dir, NotebookDocument(meta, first))
+            }
+            if (key != null) synchronized(samsungLock) {
+                val index = readSamsungIndex().put(key, id)
+                atomicWrite(samsungIndexFile) { it.write(index.toString().toByteArray()) }
+            }
+            return Imported(meta, samsung = true, typedText = note.typedText, skipped = note.skipped + conv.skipped)
+        } catch (e: Exception) {
+            dir.deleteRecursively()
+            throw if (e is IOException) e else IOException(e.message ?: e.javaClass.simpleName, e)
+        } finally {
+            media.deleteRecursively()
+        }
+    }
+
+    fun displayName(context: Context, uri: android.net.Uri): String? = runCatching {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         }

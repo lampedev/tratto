@@ -54,9 +54,16 @@ object PageBackgroundPainter {
         linePaint.strokeWidth = maxOf(0.5f, minLinePt)
         accentPaint.strokeWidth = maxOf(0.8f, minLinePt)
 
-        val lineStep = style.spacing.linesMm * PT_PER_MM
-        val gridStep = style.spacing.gridMm * PT_PER_MM
-        val top = TOP_MARGIN_MM * PT_PER_MM
+        // fogli di Samsung Notes: unità = lato corto / 360, passo = misura × 1,35 unità,
+        // primo motivo a 10 unità dall'alto; i puntini sono un po' più radi in orizzontale
+        val samsung = style.spacing.samsungSize
+        val unit = minOf(w, h) / 360f
+        val lineStep = if (samsung > 0) samsung * 1.35f * unit else style.spacing.linesMm * PT_PER_MM
+        val gridStep = if (samsung > 0) lineStep else style.spacing.gridMm * PT_PER_MM
+        val top = if (samsung > 0) 10.25f * unit else TOP_MARGIN_MM * PT_PER_MM
+        val gridTop = if (samsung > 0) top else gridStep
+        val dotTop = if (samsung > 0) 11f * unit else gridStep
+        val dotStepX = if (samsung > 0) gridStep + 1.5f * unit else gridStep
 
         when (style.background) {
             PageBackground.BLANK -> Unit
@@ -64,15 +71,15 @@ object PageBackgroundPainter {
             PageBackground.GRID -> {
                 var x = gridStep
                 while (x < w) { canvas.drawLine(x, 0f, x, h, linePaint); x += gridStep }
-                var y = gridStep
+                var y = gridTop
                 while (y < h) { canvas.drawLine(0f, y, w, y, linePaint); y += gridStep }
             }
             PageBackground.DOTS -> {
                 val r = maxOf(0.75f, minLinePt * 0.9f)
-                var y = gridStep
+                var y = dotTop
                 while (y < h) {
-                    var x = gridStep
-                    while (x < w) { canvas.drawCircle(x, y, r, dotPaint); x += gridStep }
+                    var x = if (samsung > 0) 0f else gridStep
+                    while (x < w) { canvas.drawCircle(x, y, r, dotPaint); x += dotStepX }
                     y += gridStep
                 }
             }

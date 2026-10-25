@@ -22,14 +22,14 @@ import com.caro.tratto.ui.TrattoTheme
 
 class MainActivity : ComponentActivity() {
 
-    /** PDF arrivato da un'altra app ("Apri con" / "Condividi"): la libreria lo importa e lo apre. */
-    private var incomingPdf by mutableStateOf<Uri?>(null)
+    /** File arrivati da un'altra app ("Apri con" / "Condividi"): PDF o note di Samsung Notes, li importa la libreria. */
+    private var incoming by mutableStateOf<List<Uri>>(emptyList())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestMaxRefreshRate()
-        if (savedInstanceState == null) incomingPdf = pdfFrom(intent)
+        if (savedInstanceState == null) incoming = filesFrom(intent)
         val repository = NotebookRepository(applicationContext)
         setContent {
             TrattoTheme {
@@ -60,10 +60,10 @@ class MainActivity : ComponentActivity() {
                     linkBack = ""
                     libraryVersion++
                 }
-                // un PDF in arrivo chiude l'editor (che salva uscendo) e passa dalla libreria
-                LaunchedEffect(incomingPdf) {
-                    if (incomingPdf != null) graphView = false
-                    if (incomingPdf != null && openId != null) {
+                // un file in arrivo chiude l'editor (che salva uscendo) e passa dalla libreria
+                LaunchedEffect(incoming) {
+                    if (incoming.isNotEmpty()) graphView = false
+                    if (incoming.isNotEmpty() && openId != null) {
                         openId = null
                         libraryVersion++
                     }
@@ -88,8 +88,8 @@ class MainActivity : ComponentActivity() {
                         onSearch = { search = it },
                         tagView = tagView,
                         onTagView = { tagView = it },
-                        incomingPdf = incomingPdf,
-                        onIncomingHandled = { incomingPdf = null },
+                        incoming = incoming,
+                        onIncomingHandled = { incoming = emptyList() },
                         onGraph = { graphView = true },
                     )
                 } else {
@@ -128,13 +128,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        pdfFrom(intent)?.let { incomingPdf = it }
+        filesFrom(intent).takeIf { it.isNotEmpty() }?.let { incoming = it }
     }
 
-    private fun pdfFrom(intent: Intent?): Uri? = when (intent?.action) {
-        Intent.ACTION_VIEW -> intent.data
-        Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-        else -> null
+    private fun filesFrom(intent: Intent?): List<Uri> {
+        val listed = when (intent?.action) {
+            Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+            Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java))
+            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+            else -> return emptyList()
+        }
+        // qualche app mette i file solo nella ClipData
+        val clip = intent.clipData
+        return listed.ifEmpty { if (clip == null) emptyList() else (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri } }.distinct()
     }
 
     /** Il tratto segue la penna a ogni refresh: chiediamo il modo display più veloce (90 Hz sul Tab S9 FE). */

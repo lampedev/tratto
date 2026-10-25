@@ -12,8 +12,8 @@ android {
         applicationId = "com.caro.tratto"
         minSdk = 34
         targetSdk = 36
-        versionCode = 46
-        versionName = "0.46"
+        versionCode = 100
+        versionName = "1.0"
     }
 
     buildTypes {

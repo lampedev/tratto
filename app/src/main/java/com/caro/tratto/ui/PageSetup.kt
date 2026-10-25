@@ -147,7 +147,8 @@ fun PageStyleEditor(
         val hasPattern = style.background != PageBackground.BLANK
         Label("Spaziatura")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LineSpacing.entries.forEach { s ->
+            // la spaziatura di Samsung Notes compare solo nei quaderni importati che la usano
+            LineSpacing.entries.filter { it.samsungSize == 0 || it == style.spacing }.forEach { s ->
                 FilterChip(
                     selected = style.spacing == s,
                     enabled = hasPattern,

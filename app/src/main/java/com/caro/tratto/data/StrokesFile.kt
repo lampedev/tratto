@@ -73,25 +73,50 @@ internal object StrokesFile {
                 out.writeInt(bytes.size)
                 out.write(bytes)
             }
-            out.writeInt(page.images.size)
-            for (img in page.images) {
-                out.writeUTF(img.file)
-                out.writeFloat(img.x); out.writeFloat(img.y); out.writeFloat(img.w); out.writeFloat(img.h)
-            }
-            out.writeInt(page.pdfPage)
-            out.writeBoolean(page.bookmark != null)
-            page.bookmark?.let { out.writeUTF(it.take(200)) }
-            out.writeUTF(page.id)
-            out.writeInt(page.links.size)
-            for (l in page.links) {
-                out.writeFloat(l.x); out.writeFloat(l.y); out.writeFloat(l.w); out.writeFloat(l.h)
-                out.writeUTF(l.notebookId.orEmpty())
-                out.writeUTF(l.pageId)
-                out.writeInt(l.pageIndex)
-                out.writeFloat(l.pointX); out.writeFloat(l.pointY)
-            }
+            writePageTail(out, page.images, page.pdfPage, page.bookmark, page.id, page.links)
         }
         out.flush()
+    }
+
+    /** Come [write], da tratti già codificati: l'import non costruisce la geometria Ink. */
+    fun writeRaw(os: OutputStream, pages: List<RawPage>) {
+        val out = DataOutputStream(BufferedOutputStream(os, 1 shl 16))
+        out.writeInt(MAGIC)
+        out.writeInt(VERSION)
+        out.writeInt(pages.size)
+        for (page in pages) {
+            out.writeInt(page.strokes.size)
+            for (s in page.strokes) {
+                out.writeByte(s.tool.ordinal)
+                out.writeByte(s.variant)
+                out.writeInt(s.color)
+                out.writeFloat(s.size)
+                out.writeInt(s.bytes.size)
+                out.write(s.bytes)
+            }
+            writePageTail(out, page.images, page.pdfPage, page.bookmark, page.id, page.links)
+        }
+        out.flush()
+    }
+
+    private fun writePageTail(out: DataOutputStream, images: List<PageImage>, pdfPage: Int, bookmark: String?, id: String, links: List<PageLink>) {
+        out.writeInt(images.size)
+        for (img in images) {
+            out.writeUTF(img.file)
+            out.writeFloat(img.x); out.writeFloat(img.y); out.writeFloat(img.w); out.writeFloat(img.h)
+        }
+        out.writeInt(pdfPage)
+        out.writeBoolean(bookmark != null)
+        bookmark?.let { out.writeUTF(it.take(200)) }
+        out.writeUTF(id)
+        out.writeInt(links.size)
+        for (l in links) {
+            out.writeFloat(l.x); out.writeFloat(l.y); out.writeFloat(l.w); out.writeFloat(l.h)
+            out.writeUTF(l.notebookId.orEmpty())
+            out.writeUTF(l.pageId)
+            out.writeInt(l.pageIndex)
+            out.writeFloat(l.pointX); out.writeFloat(l.pointY)
+        }
     }
 
     fun parse(data: ByteArray): Raw {

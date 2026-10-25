@@ -49,12 +49,19 @@ enum class PaperColor(val label: String, val argb: Int) {
     CUSTOM("Personalizzata", 0xFFFFFFFF.toInt()),
 }
 
-/** Spaziatura del motivo: righe (Cornell compreso) e quadretti/puntini hanno passi diversi. */
-enum class LineSpacing(val label: String, val linesMm: Float, val gridMm: Float) {
+/**
+ * Spaziatura del motivo: righe (Cornell compreso) e quadretti/puntini hanno passi diversi.
+ * Le SAMSUNG_* rifanno i fogli di Samsung Notes ([samsungSize] = misura del motivo, vedi
+ * PageBackgroundPainter): nei quaderni importati la scrittura resta sulle righe.
+ */
+enum class LineSpacing(val label: String, val linesMm: Float, val gridMm: Float, val samsungSize: Int = 0) {
     NARROW("Stretta", 6f, 4f),
     MEDIUM("Media", 7.5f, 5f),
     WIDE("Larga", 9f, 7f),
     XL("Molto larga", 11f, 10f),
+    SAMSUNG_NARROW("Samsung Notes", 9.45f, 9.45f, 12),
+    SAMSUNG_MEDIUM("Samsung Notes", 13.4f, 13.4f, 17),
+    SAMSUNG_WIDE("Samsung Notes", 22f, 22f, 28),
 }
 
 /** Aspetto del foglio, uguale per tutte le pagine del quaderno. */

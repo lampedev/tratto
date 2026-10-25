@@ -97,7 +97,8 @@ fun LibraryScreen(
     recentView: Boolean = false,
     onRecentView: (Boolean) -> Unit = {},
     onOpenPage: (String, Int) -> Unit = { id, _ -> onOpen(id) },
-    incomingPdf: android.net.Uri? = null,
+    /** File arrivati da altre app (PDF, note di Samsung Notes) da importare. */
+    incoming: List<android.net.Uri> = emptyList(),
     onIncomingHandled: () -> Unit = {},
     /** Apre il grafo dei collegamenti. */
     onGraph: () -> Unit = {},
@@ -108,8 +109,9 @@ fun LibraryScreen(
     var reload by remember { mutableIntStateOf(0) }
     var showNew by remember { mutableStateOf(false) }
     var showNewFolder by remember { mutableStateOf(false) }
-    var importing by remember { mutableStateOf<Float?>(null) }
+    var importing by remember { mutableStateOf<ImportProgress?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
+    var importDone by remember { mutableStateOf<ImportSummary?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var renaming by remember { mutableStateOf<NotebookMeta?>(null) }
     var renamingFolder by remember { mutableStateOf<Folder?>(null) }
@@ -227,31 +229,54 @@ fun LibraryScreen(
         }
     }
 
-    // PDF (anche un libro scansionato) → nuovo quaderno nella cartella corrente, poi si apre
-    fun importPdf(uri: android.net.Uri) {
-        if (importing != null) return
-        importing = 0f
+    // PDF (anche un libro scansionato) e note di Samsung Notes → quaderni nuovi nella cartella
+    // corrente. Un file solo si apre; tanti insieme, dalla radice, finiscono in una cartella apposta.
+    fun importFiles(uris: List<android.net.Uri>) {
+        if (importing != null || uris.isEmpty()) return
+        importing = ImportProgress(0, uris.size, "")
         scope.launch {
-            try {
-                val meta = withContext(Dispatchers.IO) {
-                    repository.importPdf(context, uri, target) { importing = it }.also { markNew(it.id) }
+            val names = withContext(Dispatchers.IO) { uris.map { repository.displayName(context, it) ?: "File" } }
+            val dest = if (uris.size > 1 && target == null) {
+                val name = if (names.all { it.endsWith(".sdocx", ignoreCase = true) }) "Samsung Notes" else "Importati"
+                withContext(AppIo.serial) {
+                    repository.folders().firstOrNull { it.parentId == null && it.name == name } ?: repository.createFolder(name, null)
                 }
-                onOpen(meta.id)
-            } catch (e: Exception) {
-                importError = e.message ?: e.javaClass.simpleName
-                reload++
-            } finally {
-                importing = null
+            } else {
+                null
+            }
+            val done = ArrayList<NotebookRepository.Imported>()
+            val failed = ArrayList<Pair<String, String>>()
+            uris.forEachIndexed { i, uri ->
+                importing = ImportProgress(i, uris.size, names[i])
+                try {
+                    done += withContext(Dispatchers.IO) {
+                        repository.importFile(context, uri, dest?.id ?: target) { importing = ImportProgress(i, uris.size, names[i], it) }
+                            .also { if (!it.duplicate) markNew(it.meta.id) }
+                    }
+                } catch (e: Exception) {
+                    failed += names[i] to (e.message ?: e.javaClass.simpleName)
+                }
+            }
+            importing = null
+            reload++
+            val summary = ImportSummary(done, failed, dest?.name)
+            when {
+                uris.size == 1 && failed.isNotEmpty() -> importError = failed[0].second
+                uris.size == 1 && !summary.hasNotes -> onOpen(done[0].meta.id)
+                else -> {
+                    dest?.let { onFolderChange(it.id) }
+                    importDone = summary
+                }
             }
         }
     }
 
-    val pickPdf = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-    ) { uri -> if (uri != null) importPdf(uri) }
+    val pickFiles = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> importFiles(uris) }
 
-    LaunchedEffect(incomingPdf) {
-        incomingPdf?.let { importPdf(it); onIncomingHandled() }
+    LaunchedEffect(incoming) {
+        if (incoming.isNotEmpty()) { importFiles(incoming); onIncomingHandled() }
     }
 
     val all = notebooks
@@ -312,13 +337,14 @@ fun LibraryScreen(
                 ExtendedFloatingActionButton(
                     onClick = {
                         try {
-                            pickPdf.launch(arrayOf("application/pdf"))
+                            // le note di Samsung Notes non hanno un tipo registrato: si mostra tutto application/*
+                            pickFiles.launch(arrayOf("application/*"))
                         } catch (e: android.content.ActivityNotFoundException) {
                             importError = "su questo dispositivo non c'è un'app per scegliere i file"
                         }
                     },
                     icon = { Icon(TrattoIcons.Import, contentDescription = null) },
-                    text = { Text("Importa PDF") },
+                    text = { Text("Importa") },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = InkBlue,
                 )
@@ -553,21 +579,72 @@ fun LibraryScreen(
     importing?.let { p ->
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Importazione del PDF…") },
+            title = { Text(if (p.total > 1) "Importo ${p.done + 1} di ${p.total}…" else "Importazione…") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    androidx.compose.material3.LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
-                    Text(if (p < 1f) "Copia nel quaderno: ${(p * 100).toInt()}%" else "Preparo le pagine…")
+                    val f = p.fraction
+                    val overall = if (p.total > 1) (p.done + (f ?: 0f)) / p.total else f
+                    if (overall != null) {
+                        androidx.compose.material3.LinearProgressIndicator(progress = { overall }, modifier = Modifier.fillMaxWidth())
+                    } else {
+                        androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    if (p.name.isNotEmpty()) Text(p.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             confirmButton = {},
         )
     }
 
+    importDone?.let { r ->
+        val fresh = r.done.filter { !it.duplicate }
+        AlertDialog(
+            onDismissRequest = { importDone = null },
+            title = {
+                Text(
+                    when (fresh.size) {
+                        0 -> if (r.failed.isEmpty()) "Già importate" else "Nessun quaderno importato"
+                        1 -> "Quaderno importato"
+                        else -> "${fresh.size} quaderni importati"
+                    },
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (fresh.isNotEmpty()) r.folder?.let { Text("Li trovi nella cartella «$it».") }
+                    val again = r.done.size - fresh.size
+                    if (again > 0) Text(if (again == 1) "Una nota era già in Tratto: non l'ho importata di nuovo." else "$again note erano già in Tratto: non le ho importate di nuovo.")
+                    val typed = fresh.count { it.typedText }
+                    val why = "non è stato importato, perché Tratto non ha ancora le caselle di testo."
+                    if (typed > 0) Text(
+                        when {
+                            fresh.size == 1 -> "Nella nota c'era testo scritto con la tastiera: $why"
+                            typed == 1 -> "In una nota c'era testo scritto con la tastiera: $why"
+                            else -> "In $typed note c'era testo scritto con la tastiera: $why"
+                        },
+                    )
+                    val skipped = fresh.sumOf { it.skipped }
+                    if (skipped > 0) Text("Saltati $skipped elementi che Tratto non sa mostrare (per esempio registrazioni audio o tabelle).")
+                    if (r.failed.isNotEmpty()) {
+                        Text("Non importati (${r.failed.size}):", style = MaterialTheme.typography.titleSmall)
+                        r.failed.forEach { (name, why) -> Text("• $name: $why", style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
+            },
+            confirmButton = {
+                if (r.done.size == 1 && r.folder == null) {
+                    TextButton(onClick = { importDone = null; onOpen(r.done[0].meta.id) }) { Text("Apri") }
+                } else {
+                    TextButton(onClick = { importDone = null }) { Text("OK") }
+                }
+            },
+        )
+    }
+
     importError?.let { msg ->
         AlertDialog(
             onDismissRequest = { importError = null },
-            title = { Text("Impossibile importare il PDF") },
+            title = { Text("Impossibile importare il file") },
             text = { Text(msg.replaceFirstChar { it.uppercase() }) },
             confirmButton = { TextButton(onClick = { importError = null }) { Text("OK") } },
         )
@@ -934,4 +1011,13 @@ internal fun formatDate(millis: Long): String {
     val year = SimpleDateFormat("yyyy", Locale.ITALY)
     val thisYear = year.format(Date()) == year.format(Date(millis))
     return SimpleDateFormat(if (thisYear) "d MMM, HH:mm" else "d MMM yyyy", Locale.ITALY).format(Date(millis))
+}
+
+/** Avanzamento dell'import: file [done] di [total], [fraction] del file corrente se nota. */
+private class ImportProgress(val done: Int, val total: Int, val name: String, val fraction: Float? = null)
+
+/** Riepilogo dopo un import: quaderni creati, file non riusciti (nome, motivo), cartella di arrivo. */
+private class ImportSummary(val done: List<NotebookRepository.Imported>, val failed: List<Pair<String, String>>, val folder: String?) {
+    /** C'è qualcosa da dire oltre a "fatto". */
+    val hasNotes: Boolean get() = failed.isNotEmpty() || done.any { it.typedText || it.skipped > 0 }
 }

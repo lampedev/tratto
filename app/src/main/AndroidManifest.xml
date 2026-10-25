@@ -25,10 +25,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/pdf" />
             </intent-filter>
+            <!-- "Condividi" uno o più PDF o note di Samsung Notes (.sdocx, tipo non dichiarato): il
+                 contenuto si riconosce all'arrivo, quindi si accetta tutto application/* -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/*" />
             </intent-filter>
         </activity>
 
