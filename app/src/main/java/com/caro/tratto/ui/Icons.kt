@@ -265,6 +265,33 @@ object TrattoIcons {
     val StarFilled: ImageVector by lazy { filled("Preferito", STAR) }
 
     /** Menu: tre puntini verticali (pieni). */
+    /** Tema chiaro / scuro (grafo). */
+    val Sun: ImageVector by lazy {
+        outline(
+            "Tema chiaro",
+            "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8z", "M12 2.5v2", "M12 19.5v2", "M5.3 5.3l1.4 1.4", "M17.3 17.3l1.4 1.4",
+            "M2.5 12h2", "M19.5 12h2", "M5.3 18.7l1.4-1.4", "M17.3 6.7l1.4-1.4",
+        )
+    }
+    val Moon: ImageVector by lazy { outline("Tema scuro", "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z") }
+
+    /** Mostra / nascondi (quaderni nel grafo). */
+    val Eye: ImageVector by lazy {
+        outline("Mostra", "M2.5 12C3.5 9.5 7 5 12 5s8.5 4.5 9.5 7c-1 2.5-4.5 7-9.5 7S3.5 14.5 2.5 12z", "M12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 1 1 0-5z")
+    }
+    val EyeOff: ImageVector by lazy {
+        outline(
+            "Nascondi",
+            "M3 3l18 18", "M10.6 10.6a2 2 0 0 0 2.8 2.8", "M9.9 5.2A9.6 9.6 0 0 1 12 5c5 0 8.5 4.5 9.5 7c-.4 1-1.2 2.3-2.3 3.5",
+            "M6.1 6.1C4.3 7.4 3.1 9.4 2.5 12c1 2.5 4.5 7 9.5 7c1.7 0 3.2-.5 4.5-1.2",
+        )
+    }
+
+    val ChevronDown: ImageVector by lazy { outline("Chiudi sezione", "M6 9l6 6 6-6") }
+    val ChevronRight: ImageVector by lazy { outline("Apri sezione", "M9 6l6 6-6 6") }
+    val Play: ImageVector by lazy { filled("Anima", "M8 5v14l11-7z") }
+    val Reset: ImageVector by lazy { outline("Ripristina", "M4 4v6h6", "M4.6 10A8 8 0 1 1 6 16.5") }
+
     val More: ImageVector by lazy {
         filled(
             "Altro",
