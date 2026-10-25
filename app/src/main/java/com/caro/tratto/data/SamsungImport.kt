@@ -48,7 +48,7 @@ internal object SamsungImport {
         if (pages.isEmpty()) throw java.io.IOException("la nota non ha pagine leggibili")
 
         // PDF di sfondo: uno solo nel quaderno; se la nota ne usa più d'uno si uniscono
-        val pdfIds = pages.mapNotNull { it.pdf?.media }.distinct().filter { note.media[it] != null }
+        val pdfIds = pages.flatMap { p -> p.pdfs.map { it.media } }.distinct().filter { note.media[it] != null }
         val pdfStart = HashMap<Int, Int>()
         var pdfSizes: List<Pair<Float, Float>> = emptyList()
         if (pdfIds.isNotEmpty()) {
@@ -84,40 +84,63 @@ internal object SamsungImport {
 
         val out = ArrayList<StrokesFile.RawPage>()
         val pictures = HashMap<Int, String?>()   // stessa immagine su più pagine: copiata una volta
+        // fogli senza PDF fra [y0, y1) della pagina Samsung: uno solo, o tagliati in fogli del formato se è lunga
+        // (modalità a scorrimento), a righe intere se c'è un motivo Samsung. [always] = anche se vuoto
+        fun plainPages(page: SamsungNotes.Page, y0: Float, y1: Float, inks: List<SamsungNotes.Ink>, pics: List<SamsungNotes.Picture>, texts: List<SamsungNotes.TextBox>, always: Boolean) {
+            if (!always && inks.isEmpty() && pics.isEmpty() && texts.isEmpty()) return
+            val s = fw / page.width
+            var chunk = fh / s
+            val pitch = style.spacing.samsungSize * 1.35f * minOf(page.width, page.height) / 360f
+            if (style.spacing.samsungSize > 0 && pitch > 0f) chunk = maxOf(pitch, floor(chunk / pitch) * pitch)
+            if (y1 - y0 <= chunk * 1.1f) {
+                out.add(rawPage(inks, pics, texts, note, tmp, s, s, 0f, -y0 * s, -1, pictures, image) { skipped++ })
+                return
+            }
+            val n = Math.ceil(((y1 - y0) / chunk).toDouble()).toInt().coerceIn(1, 500)
+            fun k(y: Float) = ((y - y0) / chunk).toInt().coerceIn(0, n - 1)
+            val byInk = inks.groupBy { k(it.centerY()) }
+            val byPic = pics.groupBy { k((it.top + it.bottom) / 2f) }
+            val byText = texts.groupBy { k((it.top + it.bottom) / 2f) }
+            val last = maxOf(byInk.keys.maxOrNull() ?: 0, byPic.keys.maxOrNull() ?: 0, byText.keys.maxOrNull() ?: 0)
+            for (i in 0..last) {
+                out.add(rawPage(byInk[i].orEmpty(), byPic[i].orEmpty(), byText[i].orEmpty(), note, tmp, s, s, 0f, -(y0 + i * chunk) * s, -1, pictures, image) { skipped++ })
+            }
+        }
+
         for (page in pages) {
-            val pdf = pdfIndex(page.pdf)
-            if (page.pdf != null && pdf < 0) skipped++
-            if (pdf >= 0) {
+            val recs = page.pdfs.filter { pdfIndex(it) >= 0 }.sortedBy { it.top }
+            skipped += page.pdfs.size - recs.size
+            if (recs.isEmpty()) {
+                plainPages(page, 0f, page.height, page.inks, page.pictures, page.texts, always = true)
+                continue
+            }
+            // una pagina di Tratto per ogni pagina del PDF; ogni elemento va con quella in cui cade.
+            // Sotto l'ultima, nelle note a scorrimento, può esserci altro scritto: fogli normali
+            val tail = recs.last().bottom
+            val hasTail = page.height - tail > 100f
+            fun band(y: Float): Int {
+                if (hasTail && y >= tail) return -1
+                var b = 0
+                for (i in recs.indices) if (y >= recs[i].top) b = i
+                return b
+            }
+            val inks = page.inks.groupBy { band(it.centerY()) }
+            val pics = page.pictures.groupBy { band((it.top + it.bottom) / 2f) }
+            val texts = page.texts.groupBy { band((it.top + it.bottom) / 2f) }
+            recs.forEachIndexed { i, p ->
                 // la pagina del PDF sta nel rettangolo salvato da Samsung; in Tratto è adattata al foglio
+                val pdf = pdfIndex(p)
                 val (pw, ph) = pdfSizes[pdf]
                 val fit = PdfPages.fitRect(pw, ph, fw, fh, RectF())
-                val p = page.pdf!!
                 val rw = p.right - p.left
                 val rh = p.bottom - p.top
                 val sx = if (rw > 1f) fit.width() / rw else fw / page.width
                 val sy = if (rh > 1f) fit.height() / rh else sx
                 val ox = if (rw > 1f) fit.left - p.left * sx else 0f
                 val oy = if (rh > 1f) fit.top - p.top * sy else 0f
-                out.add(rawPage(page.inks, page.pictures, page.texts, note, tmp, sx, sy, ox, oy, pdf, pictures, image) { skipped++ })
-                continue
+                out.add(rawPage(inks[i].orEmpty(), pics[i].orEmpty(), texts[i].orEmpty(), note, tmp, sx, sy, ox, oy, pdf, pictures, image) { skipped++ })
             }
-            val s = fw / page.width
-            // taglio delle pagine lunghe: un foglio = altezza del formato, a righe intere se c'è un motivo Samsung
-            var chunk = fh / s
-            val pitch = style.spacing.samsungSize * 1.35f * minOf(page.width, page.height) / 360f
-            if (style.spacing.samsungSize > 0 && pitch > 0f) chunk = maxOf(pitch, floor(chunk / pitch) * pitch)
-            if (page.height <= chunk * 1.1f) {
-                out.add(rawPage(page.inks, page.pictures, page.texts, note, tmp, s, s, 0f, 0f, -1, pictures, image) { skipped++ })
-                continue
-            }
-            val n = Math.ceil((page.height / chunk).toDouble()).toInt().coerceIn(1, 500)
-            val inks = page.inks.groupBy { (it.centerY() / chunk).toInt().coerceIn(0, n - 1) }
-            val pics = page.pictures.groupBy { (((it.top + it.bottom) / 2f) / chunk).toInt().coerceIn(0, n - 1) }
-            val texts = page.texts.groupBy { (((it.top + it.bottom) / 2f) / chunk).toInt().coerceIn(0, n - 1) }
-            val last = maxOf(inks.keys.maxOrNull() ?: 0, pics.keys.maxOrNull() ?: 0, texts.keys.maxOrNull() ?: 0)
-            for (k in 0..last) {
-                out.add(rawPage(inks[k].orEmpty(), pics[k].orEmpty(), texts[k].orEmpty(), note, tmp, s, s, 0f, -k * chunk * s, -1, pictures, image) { skipped++ })
-            }
+            if (hasTail) plainPages(page, tail, page.height, inks[-1].orEmpty(), pics[-1].orEmpty(), texts[-1].orEmpty(), always = false)
         }
         return Converted(format, style, out, fromPdf = pdfIds.isNotEmpty(), skipped = skipped)
     }

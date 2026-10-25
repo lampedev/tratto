@@ -53,12 +53,14 @@ internal object SamsungNotes {
         val template: Int,
         /** Colore della carta (ARGB) o null se non salvato. */
         val paper: Int?,
-        val pdf: PdfPaper?,
+        /** Pagine di PDF disegnate sulla pagina: di solito una; tante, una sotto l'altra, nelle note a scorrimento. */
+        val pdfs: List<PdfPaper>,
         val inks: List<Ink>,
         val pictures: List<Picture>,
         val texts: List<TextBox>,
     ) {
-        val isEmpty get() = inks.isEmpty() && pictures.isEmpty() && texts.isEmpty() && pdf == null
+        val pdf: PdfPaper? get() = pdfs.firstOrNull()
+        val isEmpty get() = inks.isEmpty() && pictures.isEmpty() && texts.isEmpty() && pdfs.isEmpty()
     }
 
     class Note(
@@ -224,7 +226,7 @@ internal object SamsungNotes {
         val height: Float,
         val template: Int,
         val paper: Int?,
-        val pdf: PdfPaper?,
+        val pdfs: List<PdfPaper>,
     ) {
         val inks = ArrayList<Ink>()
         val pictures = ArrayList<Picture>()
@@ -232,10 +234,10 @@ internal object SamsungNotes {
         var typedText = false
         var skipped = 0
 
-        fun page() = Page(width, height, template, paper, pdf, inks, pictures, texts)
+        fun page() = Page(width, height, template, paper, pdfs, inks, pictures, texts)
 
         companion object {
-            fun broken() = PageOut(0f, 0f, 0, null, null).apply { skipped = 1 }
+            fun broken() = PageOut(0f, 0f, 0, null, emptyList()).apply { skipped = 1 }
         }
     }
 
@@ -255,7 +257,7 @@ internal object SamsungNotes {
         r.pos = flexible
         var template = 0
         var paper: Int? = null
-        var pdf: PdfPaper? = null
+        val pdfs = ArrayList<PdfPaper>()
         run fields@{
             for (bit in 0..9) {
                 if (fields shr bit and 1L == 0L) continue
@@ -270,14 +272,14 @@ internal object SamsungNotes {
                         val index = r.i32()
                         // dalla versione 2034 il rettangolo è in interi, prima in float
                         val rect = FloatArray(4) { if (version >= 2034) r.i32().toFloat() else r.f32() }
-                        if (pdf == null) pdf = PdfPaper(media, index, rect[0], rect[1], rect[2], rect[3])
+                        pdfs.add(PdfPaper(media, index, rect[0], rect[1], rect[2], rect[3]))
                     }
                     9 -> template = r.i32()
                     else -> return@fields
                 }
             }
         }
-        val out = PageOut(w, h, if (pdf != null) 16 else template, paper, pdf)
+        val out = PageOut(w, h, if (pdfs.isNotEmpty()) 16 else template, paper, pdfs)
         r.pos = layers
         val count = r.u16()
         r.u16()   // livello corrente

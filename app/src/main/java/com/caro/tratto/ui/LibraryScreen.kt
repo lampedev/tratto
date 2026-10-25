@@ -664,8 +664,9 @@ fun LibraryScreen(
             title = { Text(p.title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val roots = p.folders.map { it.path.joinToString(" › ") }
-                    if (roots.isNotEmpty()) Text("Cartelle: ${roots.joinToString(", ")}")
+                    // le materie, non tutte le sottocartelle (con le unità sarebbero decine)
+                    val roots = p.folders.map { it.path.first() }.distinct()
+                    if (roots.isNotEmpty()) Text("Cartelle: ${roots.joinToString(", ")}" + if (p.folders.size > roots.size) " (${p.folders.size} in tutto)" else "")
                     Text("Quaderni da sistemare: ${pp.found} di ${p.notebooks.size}")
                     Text("Collegamenti da aggiungere: ${p.links.size}")
                     if (pp.found < p.notebooks.size) Text(
