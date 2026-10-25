@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-1.0-D97757)
+![Versione](https://img.shields.io/badge/versione-1.1-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -96,8 +96,13 @@ qualsiasi tablet Android 14+ con un pennino.
 - Le note diventano quaderni **vettoriali**, non immagini: ogni tratto torna un tratto vero, con la pressione e il colore originali, e si può modificare, selezionare col lazo ed esportare nitido.
 - Arrivano anche evidenziatori (sotto l'inchiostro), forme e linee con le frecce, foto incollate, PDF di sfondo e il motivo del foglio: righe, quadretti e puntini restano **alla stessa distanza** di Samsung Notes, quindi la scrittura cade ancora sulle righe.
 - Titolo e date restano quelli della nota. Più note insieme finiscono nella cartella «Samsung Notes»; una nota già importata non si duplica.
-- Il testo scritto con la tastiera e le registrazioni audio non si importano ancora: alla fine un riepilogo dice in quali note c'erano.
+- Le caselle di testo diventano un riquadro con lo stesso testo, allo stesso posto. Il testo scritto nel corpo della nota e le registrazioni audio non si importano ancora: alla fine un riepilogo dice in quali note c'erano.
 - Il formato `.sdocx` non è pubblico: la lettura segue la documentazione del progetto [sdocx](https://github.com/twangodev/sdocx) di twangodev, verificata sui file d'esempio del suo corpus.
+
+### 🧭 Riordino con un piano
+- Un **piano** è un piccolo file JSON (`"tratto": "piano"`) che dice quali cartelle creare, dove mettere ogni quaderno e quali collegamenti aggiungere. Si apre con Tratto (o con **Importa**, anche insieme alle note) e prima di applicarlo si vede un'anteprima.
+- I quaderni si riconoscono dalla nota di Samsung Notes da cui sono nati, o dal titolo. Le cartelle che esistono già si riusano, quelle rimaste vuote spariscono, e ripetere lo stesso piano non duplica niente.
+- Serve a far riordinare e collegare gli appunti da qualcun altro, per esempio da Claude che legge le note: le zone dei collegamenti sono quelle delle parole scritte a mano.
 
 ### 🔗 Collegamenti
 - Con il lazo si seleziona una zona e si sceglie **"Collega a…"**: si sfogliano le cartelle o si cerca, poi si collega un quaderno intero oppure una sua pagina.
@@ -224,7 +229,7 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **1.0**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **1.1**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
 - caselle di testo (servirebbero anche per il testo digitato delle note di Samsung Notes);

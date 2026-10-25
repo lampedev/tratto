@@ -40,6 +40,9 @@ internal object SamsungNotes {
 
     class Picture(val media: Int, val left: Float, val top: Float, val right: Float, val bottom: Float)
 
+    /** Casella di testo scritta con la tastiera: in Tratto diventa un'immagine del testo, allo stesso posto. */
+    class TextBox(val text: String, val left: Float, val top: Float, val right: Float, val bottom: Float)
+
     /** Pagina [page] del PDF [media] disegnata nel rettangolo dato (coordinate della pagina Samsung). */
     class PdfPaper(val media: Int, val page: Int, val left: Float, val top: Float, val right: Float, val bottom: Float)
 
@@ -53,8 +56,9 @@ internal object SamsungNotes {
         val pdf: PdfPaper?,
         val inks: List<Ink>,
         val pictures: List<Picture>,
+        val texts: List<TextBox>,
     ) {
-        val isEmpty get() = inks.isEmpty() && pictures.isEmpty() && pdf == null
+        val isEmpty get() = inks.isEmpty() && pictures.isEmpty() && texts.isEmpty() && pdf == null
     }
 
     class Note(
@@ -68,7 +72,7 @@ internal object SamsungNotes {
         val pens: Map<Int, String>,
         /** File estratti in media/, per id di collegamento. */
         val media: Map<Int, File>,
-        /** C'era testo scritto con la tastiera (titolo a parte): non si importa. */
+        /** C'era testo scritto con la tastiera nel corpo della nota (titolo a parte): non si importa. */
         val typedText: Boolean,
         /** Oggetti che Tratto non sa rappresentare (caselle di testo, audio, tabelle…). */
         val skipped: Int,
@@ -224,10 +228,11 @@ internal object SamsungNotes {
     ) {
         val inks = ArrayList<Ink>()
         val pictures = ArrayList<Picture>()
+        val texts = ArrayList<TextBox>()
         var typedText = false
         var skipped = 0
 
-        fun page() = Page(width, height, template, paper, pdf, inks, pictures)
+        fun page() = Page(width, height, template, paper, pdf, inks, pictures, texts)
 
         companion object {
             fun broken() = PageOut(0f, 0f, 0, null, null).apply { skipped = 1 }
@@ -305,7 +310,7 @@ internal object SamsungNotes {
                     7 -> out.inks.addAll(shape(b, frames))
                     8 -> out.inks.addAll(line(b, frames))
                     3 -> picture(b, frames)?.let(out.pictures::add) ?: out.skipped++
-                    2 -> { out.typedText = true; out.skipped++ }
+                    2 -> textBox(b, frames)?.let(out.texts::add) ?: run { out.typedText = true; out.skipped++ }
                     4, 100 -> Unit   // contenitori: contano i figli
                     else -> out.skipped++
                 }
@@ -616,6 +621,14 @@ internal object SamsungNotes {
         if (media < 0) return null
         val bb = bounds(b, base)
         return Picture(media, bb[0].toFloat(), bb[1].toFloat(), bb[2].toFloat(), bb[3].toFloat())
+    }
+
+    private fun textBox(b: ByteArray, frames: List<Frame>): TextBox? {
+        val base = frames.firstOrNull { it.type == 0 } ?: return null
+        val f = frames.firstOrNull { it.type == 7 } ?: return null
+        val text = text(b, f.start, f.start + f.size)?.trimEnd()?.takeIf { it.isNotBlank() } ?: return null
+        val bb = bounds(b, base)
+        return TextBox(text, bb[0].toFloat(), bb[1].toFloat(), bb[2].toFloat(), bb[3].toFloat())
     }
 
     /** Testo di un oggetto titolo/corpo: nel frame 7, bit 0 (u32 misura, u32 caratteri UTF-16, testo). */

@@ -38,9 +38,9 @@ internal object SamsungImport {
 
     /**
      * [pdfOut] = dove mettere il PDF di sfondo (source.pdf del quaderno), se la nota ne ha;
-     * [image] copia un'immagine nel quaderno e ne ritorna il nome (o null).
+     * [image] copia un'immagine nel quaderno e ne ritorna il nome (o null); [tmp] = cartella di lavoro.
      */
-    fun convert(context: Context, note: SamsungNotes.Note, pdfOut: File, image: (File) -> String?): Converted {
+    fun convert(context: Context, note: SamsungNotes.Note, pdfOut: File, tmp: File, image: (File) -> String?): Converted {
         var skipped = 0
         val pages = note.pages.filter { it.width > 0f && it.height > 0f }
             .dropLastWhile { it.isEmpty }
@@ -98,7 +98,7 @@ internal object SamsungImport {
                 val sy = if (rh > 1f) fit.height() / rh else sx
                 val ox = if (rw > 1f) fit.left - p.left * sx else 0f
                 val oy = if (rh > 1f) fit.top - p.top * sy else 0f
-                out.add(rawPage(page.inks, page.pictures, note, sx, sy, ox, oy, pdf, pictures, image) { skipped++ })
+                out.add(rawPage(page.inks, page.pictures, page.texts, note, tmp, sx, sy, ox, oy, pdf, pictures, image) { skipped++ })
                 continue
             }
             val s = fw / page.width
@@ -107,15 +107,16 @@ internal object SamsungImport {
             val pitch = style.spacing.samsungSize * 1.35f * minOf(page.width, page.height) / 360f
             if (style.spacing.samsungSize > 0 && pitch > 0f) chunk = maxOf(pitch, floor(chunk / pitch) * pitch)
             if (page.height <= chunk * 1.1f) {
-                out.add(rawPage(page.inks, page.pictures, note, s, s, 0f, 0f, -1, pictures, image) { skipped++ })
+                out.add(rawPage(page.inks, page.pictures, page.texts, note, tmp, s, s, 0f, 0f, -1, pictures, image) { skipped++ })
                 continue
             }
             val n = Math.ceil((page.height / chunk).toDouble()).toInt().coerceIn(1, 500)
             val inks = page.inks.groupBy { (it.centerY() / chunk).toInt().coerceIn(0, n - 1) }
             val pics = page.pictures.groupBy { (((it.top + it.bottom) / 2f) / chunk).toInt().coerceIn(0, n - 1) }
-            val last = maxOf(inks.keys.maxOrNull() ?: 0, pics.keys.maxOrNull() ?: 0)
+            val texts = page.texts.groupBy { (((it.top + it.bottom) / 2f) / chunk).toInt().coerceIn(0, n - 1) }
+            val last = maxOf(inks.keys.maxOrNull() ?: 0, pics.keys.maxOrNull() ?: 0, texts.keys.maxOrNull() ?: 0)
             for (k in 0..last) {
-                out.add(rawPage(inks[k].orEmpty(), pics[k].orEmpty(), note, s, s, 0f, -k * chunk * s, -1, pictures, image) { skipped++ })
+                out.add(rawPage(inks[k].orEmpty(), pics[k].orEmpty(), texts[k].orEmpty(), note, tmp, s, s, 0f, -k * chunk * s, -1, pictures, image) { skipped++ })
             }
         }
         return Converted(format, style, out, fromPdf = pdfIds.isNotEmpty(), skipped = skipped)
@@ -147,7 +148,9 @@ internal object SamsungImport {
     private fun rawPage(
         inks: List<SamsungNotes.Ink>,
         pictures: List<SamsungNotes.Picture>,
+        texts: List<SamsungNotes.TextBox>,
         note: SamsungNotes.Note,
+        tmp: File,
         sx: Float,
         sy: Float,
         ox: Float,
@@ -169,6 +172,13 @@ internal object SamsungImport {
             val name = if (file == null) null else copied.getOrPut(p.media) { image(file) }
             if (name == null) { onSkip(); continue }
             images.add(PageImage(name, p.left * sx + ox, p.top * sy + oy, (p.right - p.left) * sx, (p.bottom - p.top) * sy))
+        }
+        for (t in texts) {
+            val w = (t.right - t.left) * sx
+            val h = (t.bottom - t.top) * sy
+            val name = runCatching { textImage(t.text, w, h, tmp) }.getOrNull()?.let(image)
+            if (name == null) { onSkip(); continue }
+            images.add(PageImage(name, t.left * sx + ox, t.top * sy + oy, w, h))
         }
         return StrokesFile.RawPage(strokes, images, pdfPage)
     }
@@ -223,6 +233,38 @@ internal object SamsungImport {
         val size = (ink.size * sx * if (pressure == null) 1f else widthFactor(tool)).coerceIn(0.1f, if (tool == ToolKind.HIGHLIGHTER) 60f else 40f)
         val color = if (tool == ToolKind.HIGHLIGHTER) ink.color else ink.color or 0xFF000000.toInt()
         return StrokesFile.RawStroke(tool, VARIANT, color, size, densifyInputs(batch).encode())
+    }
+
+    /**
+     * Testo di una casella di Samsung Notes come PNG trasparente di [wPt]×[hPt] punti (3 px per punto):
+     * il corpo più grande che ci sta, fino a 12 pt, nero come in Samsung Notes.
+     */
+    private fun textImage(text: String, wPt: Float, hPt: Float, tmp: File): File? {
+        if (wPt < 4f || hPt < 4f) return null
+        val k = 3f
+        val w = (wPt * k).toInt().coerceIn(8, 4000)
+        val h = (hPt * k).toInt().coerceIn(8, 4000)
+        val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF202020.toInt() }
+        fun layout(size: Float): android.text.StaticLayout {
+            paint.textSize = size
+            return android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, w).setIncludePad(false).build()
+        }
+        var lo = 4f * k
+        var hi = 12f * k
+        if (layout(lo).height > h) hi = lo
+        repeat(12) {
+            val mid = (lo + hi) / 2f
+            if (layout(mid).height <= h) lo = mid else hi = mid
+        }
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        try {
+            layout(lo).draw(android.graphics.Canvas(bmp))
+            val f = File(tmp, "testo_${System.nanoTime()}.png")
+            f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            return f
+        } finally {
+            bmp.recycle()
+        }
     }
 
     /** Misure (punti) di tutte le pagine del PDF. */

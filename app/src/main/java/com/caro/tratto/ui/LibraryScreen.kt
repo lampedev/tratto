@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.caro.tratto.data.NotebookRepository
+import com.caro.tratto.data.PlanFile
 import com.caro.tratto.data.RecentNotebooks
 import com.caro.tratto.export.FolderSync
 import com.caro.tratto.model.Folder
@@ -112,6 +113,8 @@ fun LibraryScreen(
     var importing by remember { mutableStateOf<ImportProgress?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
     var importDone by remember { mutableStateOf<ImportSummary?>(null) }
+    var planPreview by remember { mutableStateOf<PlanPreview?>(null) }
+    var planDone by remember { mutableStateOf<NotebookRepository.PlanResult?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var renaming by remember { mutableStateOf<NotebookMeta?>(null) }
     var renamingFolder by remember { mutableStateOf<Folder?>(null) }
@@ -231,10 +234,18 @@ fun LibraryScreen(
 
     // PDF (anche un libro scansionato) e note di Samsung Notes → quaderni nuovi nella cartella
     // corrente. Un file solo si apre; tanti insieme, dalla radice, finiscono in una cartella apposta.
-    fun importFiles(uris: List<android.net.Uri>) {
-        if (importing != null || uris.isEmpty()) return
-        importing = ImportProgress(0, uris.size, "")
+    // un piano di riordino (JSON) arrivato insieme ai file si propone dopo averli importati
+    fun importFiles(all: List<android.net.Uri>) {
+        if (importing != null || all.isEmpty()) return
+        importing = ImportProgress(0, all.size, "")
         scope.launch {
+            val plans = ArrayList<PlanFile.Plan>()
+            val uris = withContext(Dispatchers.IO) { all.filter { u -> repository.readPlan(context, u)?.let { plans += it } == null } }
+            plans.firstOrNull()?.let { p -> planPreview = PlanPreview(p, withContext(AppIo.serial) { repository.resolvePlan(p).size }) }
+            if (uris.isEmpty()) {
+                importing = null
+                return@launch
+            }
             val names = withContext(Dispatchers.IO) { uris.map { repository.displayName(context, it) ?: "File" } }
             val dest = if (uris.size > 1 && target == null) {
                 val name = if (names.all { it.endsWith(".sdocx", ignoreCase = true) }) "Samsung Notes" else "Importati"
@@ -260,9 +271,11 @@ fun LibraryScreen(
             importing = null
             reload++
             val summary = ImportSummary(done, failed, dest?.name)
+            // il piano si propone dopo: ora i quaderni importati ci sono
+            planPreview?.let { pp -> planPreview = pp.copy(found = withContext(AppIo.serial) { repository.resolvePlan(pp.plan).size }) }
             when {
                 uris.size == 1 && failed.isNotEmpty() -> importError = failed[0].second
-                uris.size == 1 && !summary.hasNotes -> onOpen(done[0].meta.id)
+                uris.size == 1 && !summary.hasNotes && planPreview == null -> onOpen(done[0].meta.id)
                 else -> {
                     dest?.let { onFolderChange(it.id) }
                     importDone = summary
@@ -624,7 +637,10 @@ fun LibraryScreen(
                         },
                     )
                     val skipped = fresh.sumOf { it.skipped }
-                    if (skipped > 0) Text("Saltati $skipped elementi che Tratto non sa mostrare (per esempio registrazioni audio o tabelle).")
+                    if (skipped > 0) Text(
+                        if (skipped == 1) "Saltato un elemento che Tratto non sa mostrare (per esempio una registrazione audio o una tabella)."
+                        else "Saltati $skipped elementi che Tratto non sa mostrare (per esempio registrazioni audio o tabelle).",
+                    )
                     if (r.failed.isNotEmpty()) {
                         Text("Non importati (${r.failed.size}):", style = MaterialTheme.typography.titleSmall)
                         r.failed.forEach { (name, why) -> Text("• $name: $why", style = MaterialTheme.typography.bodySmall) }
@@ -638,6 +654,52 @@ fun LibraryScreen(
                     TextButton(onClick = { importDone = null }) { Text("OK") }
                 }
             },
+        )
+    }
+
+    planPreview?.takeIf { importDone == null && importing == null }?.let { pp ->
+        val p = pp.plan
+        AlertDialog(
+            onDismissRequest = { planPreview = null },
+            title = { Text(p.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val roots = p.folders.map { it.path.joinToString(" › ") }
+                    if (roots.isNotEmpty()) Text("Cartelle: ${roots.joinToString(", ")}")
+                    Text("Quaderni da sistemare: ${pp.found} di ${p.notebooks.size}")
+                    Text("Collegamenti da aggiungere: ${p.links.size}")
+                    if (pp.found < p.notebooks.size) Text(
+                        "Alcune note non sono ancora in Tratto: importale prima, oppure applica il piano lo stesso e poi di nuovo quando ci sono.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = pp.found > 0, onClick = {
+                    planPreview = null
+                    scope.launch {
+                        planDone = withContext(AppIo.serial) { repository.applyPlan(p) }
+                        onFolderChange(null)
+                        reload++
+                    }
+                }) { Text("Applica") }
+            },
+            dismissButton = { TextButton(onClick = { planPreview = null }) { Text("Annulla") } },
+        )
+    }
+
+    planDone?.let { r ->
+        AlertDialog(
+            onDismissRequest = { planDone = null },
+            title = { Text("Riordino fatto") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("${r.placed} quaderni messi nelle loro cartelle, ${r.links} collegamenti aggiunti.")
+                    if (r.missing.isNotEmpty()) Text("Non trovati in Tratto: ${r.missing.joinToString(", ")}.")
+                }
+            },
+            confirmButton = { TextButton(onClick = { planDone = null }) { Text("OK") } },
         )
     }
 
@@ -1021,3 +1083,6 @@ private class ImportSummary(val done: List<NotebookRepository.Imported>, val fai
     /** C'è qualcosa da dire oltre a "fatto". */
     val hasNotes: Boolean get() = failed.isNotEmpty() || done.any { it.typedText || it.skipped > 0 }
 }
+
+/** Piano di riordino in attesa di conferma; [found] = quaderni del piano già presenti in Tratto. */
+private data class PlanPreview(val plan: PlanFile.Plan, val found: Int)

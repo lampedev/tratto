@@ -9,6 +9,7 @@ import com.caro.tratto.model.Folder
 import com.caro.tratto.model.LineSpacing
 import com.caro.tratto.model.PageBackground
 import com.caro.tratto.model.PageFormat
+import com.caro.tratto.model.PageLink
 import com.caro.tratto.model.PageModel
 import com.caro.tratto.model.PageStyle
 import com.caro.tratto.model.PaperColor
@@ -142,6 +143,18 @@ class NotebookRepository(context: Context) {
      * contenuto e non dal nome. Lancia IOException con il motivo in italiano.
      */
     fun importFile(context: Context, uri: android.net.Uri, folderId: String?, onProgress: (Float) -> Unit = {}): Imported {
+        // lavoro lungo e pesante: priorità bassa, così l'interfaccia resta fluida anche con tanti file
+        val tid = android.os.Process.myTid()
+        val priority = android.os.Process.getThreadPriority(tid)
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        try {
+            return importFileNow(context, uri, folderId, onProgress)
+        } finally {
+            android.os.Process.setThreadPriority(priority)
+        }
+    }
+
+    private fun importFileNow(context: Context, uri: android.net.Uri, folderId: String?, onProgress: (Float) -> Unit): Imported {
         val head = ByteArray(4)
         val n = context.contentResolver.openInputStream(uri)?.use { it.readNBytes(head, 0, 4) } ?: throw IOException("file non leggibile")
         return when {
@@ -171,7 +184,7 @@ class NotebookRepository(context: Context) {
                 dir.deleteRecursively()
                 return Imported(readMeta(dirOf(before)), samsung = true, duplicate = true)
             }
-            val conv = SamsungImport.convert(context, note, File(dir, SOURCE_PDF)) { f ->
+            val conv = SamsungImport.convert(context, note, File(dir, SOURCE_PDF), media) { f ->
                 importImage(context, id, android.net.Uri.fromFile(f))?.first
             }
             val now = System.currentTimeMillis()
@@ -208,6 +221,97 @@ class NotebookRepository(context: Context) {
         } finally {
             media.deleteRecursively()
         }
+    }
+
+    // ---------------- piani di riordino (vedi PlanFile) ----------------
+
+    /** Il piano di riordino contenuto nel file, o null se il file non è un piano. */
+    internal fun readPlan(context: Context, uri: android.net.Uri): PlanFile.Plan? = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val bytes = input.readNBytes(PLAN_MAX_BYTES + 1)
+            val first = bytes.firstOrNull { !it.toInt().toChar().isWhitespace() }
+            if (bytes.size > PLAN_MAX_BYTES || first != '{'.code.toByte()) null else PlanFile.parse(String(bytes, Charsets.UTF_8))
+        }
+    }.getOrNull()
+
+    /** Quaderni del piano presenti in libreria: chiave della nota → id del quaderno. */
+    internal fun resolvePlan(plan: PlanFile.Plan): Map<String, String> {
+        val index = synchronized(samsungLock) { readSamsungIndex() }
+        val all = list()
+        val ids = all.mapTo(HashSet()) { it.id }
+        return plan.notebooks.mapNotNull { nb ->
+            val id = index.optString(nb.note).takeIf { it in ids } ?: all.firstOrNull { it.title == nb.title }?.id
+            id?.let { nb.note to it }
+        }.toMap()
+    }
+
+    /** Esito di un piano: quaderni messi al loro posto, collegamenti aggiunti, note non trovate (titoli). */
+    class PlanResult(val placed: Int, val links: Int, val missing: List<String>)
+
+    /**
+     * Applica il piano: crea le cartelle che mancano (le altre si riusano, per nome), sposta i quaderni,
+     * aggiunge i collegamenti. Si può ripetere: i collegamenti già presenti non si duplicano.
+     */
+    internal fun applyPlan(plan: PlanFile.Plan): PlanResult {
+        val ids = resolvePlan(plan)
+        val folderIds = HashMap<List<String>, String>()
+        fun folderFor(path: List<String>): String? {
+            if (path.isEmpty()) return null
+            folderIds[path]?.let { return it }
+            val parent = folderFor(path.dropLast(1))
+            val f = folders().firstOrNull { it.parentId == parent && it.name == path.last() }
+                ?: createFolder(path.last(), parent, plan.folders.firstOrNull { it.path == path }?.color)
+            folderIds[path] = f.id
+            return f.id
+        }
+        plan.folders.forEach { folderFor(it.path) }
+        var placed = 0
+        val left = HashSet<String>()   // cartelle da cui i quaderni sono usciti
+        for (nb in plan.notebooks) {
+            val id = ids[nb.note] ?: continue
+            readMeta(dirOf(id)).folderId?.let(left::add)
+            moveNotebook(id, folderFor(nb.folder))
+            placed++
+        }
+        // cartelle rimaste vuote (come «Samsung Notes» dopo l'import): via, non servono più
+        val kept = folderIds.values.toSet()
+        val notebooksNow = list()
+        for (fid in left - kept) {
+            if (notebooksNow.none { it.folderId == fid } && folders().none { it.parentId == fid }) deleteFolder(fid)
+        }
+        // collegamenti: per ogni quaderno di partenza si riscrive strokes.bin una volta sola
+        var added = 0
+        val pageIds = HashMap<String, List<String>>()
+        fun pagesOf(id: String) = pageIds.getOrPut(id) { readRaw(id).raw.pages.map { it.id } }
+        for ((from, links) in plan.links.groupBy { it.from }) {
+            val id = ids[from] ?: continue
+            synchronized(lockFor(id)) {
+                val dir = dirOf(id)
+                val raw = readRaw(id)
+                if (raw.fromBackup || !raw.raw.complete) return@synchronized   // quaderno da recuperare: non si tocca
+                val pages = raw.raw.pages.toMutableList()
+                var changed = false
+                for (l in links) {
+                    val to = ids[l.to] ?: continue
+                    val page = pages.getOrNull(l.page) ?: continue
+                    val targetPages = if (to == id) pages.map { it.id } else pagesOf(to)
+                    // pagina che non c'è: si collega il quaderno intero
+                    val pageId = targetPages.getOrNull(l.toPage) ?: ""
+                    val link = PageLink(l.x, l.y, l.w, l.h, if (to == id) null else to, pageId, l.toPage.coerceAtLeast(0), l.pointX, l.pointY)
+                    if (page.links.any { it.notebookId == link.notebookId && it.pageId == pageId && it.x == l.x && it.y == l.y }) continue
+                    pages[l.page] = StrokesFile.RawPage(page.strokes, page.images, page.pdfPage, page.bookmark, page.id, page.links + link)
+                    changed = true
+                    added++
+                }
+                if (changed) {
+                    atomicWrite(File(dir, STROKES), backup = File(dir, STROKES_BACKUP)) { StrokesFile.writeRaw(it, pages) }
+                    val meta = readMeta(dir)
+                    writeMeta(dir, meta.copy(linkTargets = pages.flatMap { it.links }.mapNotNull { it.notebookId }.distinct()))
+                    pageIds.remove(id)
+                }
+            }
+        }
+        return PlanResult(placed, added, plan.notebooks.filter { it.note !in ids }.map { it.title.ifBlank { it.note } })
     }
 
     fun displayName(context: Context, uri: android.net.Uri): String? = runCatching {
@@ -564,6 +668,7 @@ class NotebookRepository(context: Context) {
 
     private companion object {
         const val META = "meta.json"
+        const val PLAN_MAX_BYTES = 4 shl 20
         const val STROKES = "strokes.bin"
         const val STROKES_BACKUP = "strokes.bak"
         const val STROKES_BROKEN = "strokes.rotto"

@@ -24,6 +24,8 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/pdf" />
+                <!-- piano di riordino (piano-tratto.json) aperto dai download o dalla chat -->
+                <data android:mimeType="application/json" />
             </intent-filter>
             <!-- "Condividi" uno o più PDF o note di Samsung Notes (.sdocx, tipo non dichiarato): il
                  contenuto si riconosce all'arrivo, quindi si accetta tutto application/* -->
