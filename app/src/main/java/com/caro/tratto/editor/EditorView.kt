@@ -385,6 +385,11 @@ class EditorView(context: Context) : FrameLayout(context) {
     // ---- immagini e appunti ----
 
     /** Bitmap delle immagini del quaderno (fornite dalla UI, con cache). */
+    /** Colore della materia di arrivo dei collegamenti (bollino). */
+    var linkColor: ((com.caro.tratto.model.PageLink) -> Int)?
+        get() = pagesView.linkColor
+        set(value) { pagesView.linkColor = value }
+
     var imageProvider: ((String) -> android.graphics.Bitmap?)?
         get() = pagesView.imageProvider
         set(value) {

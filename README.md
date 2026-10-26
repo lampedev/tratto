@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-1.3-D97757)
+![Versione](https://img.shields.io/badge/versione-1.4-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -108,6 +108,7 @@ qualsiasi tablet Android 14+ con un pennino.
 ### 🔗 Collegamenti
 - Con il lazo si seleziona una zona e si sceglie **"Collega a…"**: si sfogliano le cartelle o si cerca, poi si collega un quaderno intero oppure una sua pagina.
 - Un tocco col dito sul collegamento lo apre, e "← Torna" riporta dove eri.
+- Sul foglio un collegamento è una cornice sottile con un velo grigio, più un bollino col colore della materia a cui porta (verde, arancione, azzurro…): si vede subito dove va, senza coprire la scrittura.
 - Anche nel **PDF esportato** i collegamenti si possono cliccare. Quelli verso un altro quaderno funzionano nella copia sincronizzata, con percorsi relativi, nei lettori PDF da computer.
 - **Grafo dei collegamenti**, come quello di Obsidian: un pallino per quaderno, una linea per ogni collegamento, i colori delle materie. I pallini si trascinano e le linee li seguono come molle. Un tocco mette in evidenza i quaderni collegati, un secondo tocco apre il quaderno. Il grafo si costruisce solo dai `meta.json`, senza caricare i tratti, quindi resta leggero anche con centinaia di quaderni.
 - Tema **chiaro** (come l'app), **scuro** o come il sistema, e un pannello di impostazioni come quello di Obsidian:
@@ -236,7 +237,7 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **1.3**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **1.4**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
 - caselle di testo (servirebbero anche per il testo digitato delle note di Samsung Notes);

@@ -165,6 +165,16 @@ fun EditorScreen(
     var tappedLink by remember { mutableStateOf<Triple<Int, PageLink, Offset>?>(null) }
     val localBack = remember { mutableStateListOf<Pair<Int, FloatArray>>() }
     var titles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // colore della materia di ogni quaderno: il bollino dei collegamenti dice dove portano
+    var subjectColors by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    LaunchedEffect(notebookId) {
+        subjectColors = withContext(AppIo.serial) { subjectColors(repository.list(), repository.folders()) }
+    }
+    LaunchedEffect(editor, subjectColors) {
+        val v = editor ?: return@LaunchedEffect
+        val colors = subjectColors
+        if (colors.isNotEmpty()) v.linkColor = { l -> colors[l.notebookId ?: notebookId] ?: NO_SUBJECT_COLOR }
+    }
     var confirmDeletePage by remember { mutableStateOf(false) }
     var showPages by remember { mutableStateOf(false) }
     var choosePages by remember { mutableStateOf(false) }
@@ -919,4 +929,18 @@ fun EditorScreen(
 /** Impronta degli appunti di Android (quando sono stati messi, etichetta, tipi) senza leggerne il contenuto. */
 private fun systemClipKey(clipboard: ClipboardManager?): String? = clipboard?.primaryClipDescription?.let { d ->
     "${d.timestamp}|${d.label}|" + (0 until d.mimeTypeCount).joinToString(",") { d.getMimeType(it) }
+}
+
+/** Quaderni fuori dalle cartelle: bollino grigio. */
+private const val NO_SUBJECT_COLOR = 0xFF9AA4AE.toInt()
+
+/** Quaderno → colore della sua materia (cartella di primo livello; quella senza colore ha il blu di serie). */
+private fun subjectColors(metas: List<com.caro.tratto.model.NotebookMeta>, folders: List<com.caro.tratto.model.Folder>): Map<String, Int> {
+    val byId = folders.associateBy { it.id }
+    return metas.associate { m ->
+        var f = m.folderId?.let(byId::get)
+        var guard = 0
+        while (f?.parentId != null && guard++ < 64) f = byId[f.parentId] ?: break
+        m.id to (if (f == null) NO_SUBJECT_COLOR else f.color ?: 0xFF6E8DB5.toInt())
+    }
 }

@@ -12,6 +12,7 @@ import com.caro.tratto.export.PageRenderer
 import com.caro.tratto.model.NoteStroke
 import com.caro.tratto.model.PageImage
 import com.caro.tratto.model.NotebookDocument
+import com.caro.tratto.model.PageLink
 import com.caro.tratto.model.ToolKind
 import android.graphics.RectF
 import com.caro.tratto.data.PdfPages
@@ -38,36 +39,64 @@ internal class PagesView(context: Context, private val vp: Viewport) : View(cont
             field = value
             invalidateAllPages()
         }
-    // collegamenti: una sottolineatura sottile azzurra, come un link, e una freccina ↗ alla fine
+    // collegamenti: cornice sottile con un velo grigio (si vedono senza coprire la scrittura) e un
+    // bollino col colore della materia a cui portano
     private val dp = context.resources.displayMetrics.density
-    private val linkLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val linkFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val linkFrame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 1.6f * dp
+        strokeWidth = 1.2f * dp
+    }
+    private val badgeFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val badgeRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * dp
+    }
+    private val badgeArrow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.4f * dp
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
-        color = 0xD93F7FD9.toInt()
+        color = android.graphics.Color.WHITE
     }
     private val arrowPath = android.graphics.Path()
+    private val linkRect = android.graphics.RectF()
+
+    /** Colore (ARGB) della materia a cui porta il collegamento; null = grigio. */
+    var linkColor: ((PageLink) -> Int)? = null
+        set(value) {
+            field = value
+            invalidateAllPages()
+        }
 
     private fun drawLinks(canvas: Canvas, d: NotebookDocument, page: Int, left: Float, top: Float, s: Float) {
         val links = d.pages[page].links
         if (links.isEmpty()) return
-        val a = 4f * dp
+        val dark = d.style.darkPaper
+        linkFill.color = if (dark) 0x26FFFFFF else 0x1F5A6475
+        linkFrame.color = if (dark) 0x8CFFFFFF.toInt() else 0x8C5A6475.toInt()
+        badgeRing.color = d.style.paperArgb
+        val pad = 2f * dp
         for (l in links) {
-            val x0 = left + l.x * s
-            val x1 = left + (l.x + l.w) * s
-            val y = top + (l.y + l.h) * s + 2f * dp
-            canvas.drawLine(x0, y, x1, y, linkLine)
-            // freccina ↗ appena dopo la fine della riga
-            val cx = x1 + a * 1.6f
-            val cy = y - a * 1.2f
+            linkRect.set(left + l.x * s - pad, top + l.y * s - pad, left + (l.x + l.w) * s + pad, top + (l.y + l.h) * s + pad)
+            val r = minOf(7f * dp, linkRect.height() / 2f)
+            canvas.drawRoundRect(linkRect, r, r, linkFill)
+            canvas.drawRoundRect(linkRect, r, r, linkFrame)
+            // bollino sull'angolo in alto a destra, con la freccina ↗
+            val br = minOf(7f * dp, maxOf(4f * dp, linkRect.height() * 0.42f))
+            val cx = linkRect.right
+            val cy = linkRect.top
+            badgeFill.color = linkColor?.invoke(l) ?: 0xFF9AA4AE.toInt()
+            canvas.drawCircle(cx, cy, br, badgeFill)
+            canvas.drawCircle(cx, cy, br, badgeRing)
+            val a = br * 0.38f
             arrowPath.reset()
             arrowPath.moveTo(cx - a, cy + a)
             arrowPath.lineTo(cx + a, cy - a)
-            arrowPath.moveTo(cx - a * 0.2f, cy - a)
+            arrowPath.moveTo(cx - a * 0.15f, cy - a)
             arrowPath.lineTo(cx + a, cy - a)
-            arrowPath.lineTo(cx + a, cy + a * 0.2f)
-            canvas.drawPath(arrowPath, linkLine)
+            arrowPath.lineTo(cx + a, cy + a * 0.15f)
+            canvas.drawPath(arrowPath, badgeArrow)
         }
     }
 
