@@ -65,6 +65,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.caro.tratto.data.NotebookRepository
 import com.caro.tratto.data.PlanFile
 import com.caro.tratto.data.RecentNotebooks
+import com.caro.tratto.export.Exporter
 import com.caro.tratto.export.FolderSync
 import com.caro.tratto.model.Folder
 import com.caro.tratto.model.NotebookMeta
@@ -124,6 +125,10 @@ fun LibraryScreen(
     var toMove by remember { mutableStateOf<Picked?>(null) }
     var toDelete by remember { mutableStateOf<Picked?>(null) }
     var toColor by remember { mutableStateOf<List<Folder>?>(null) }
+    // esportazione di più quaderni: avanzamento, esito se qualcosa non è riuscito
+    var exportProgress by remember { mutableStateOf<SyncProgress?>(null) }
+    var exportOutcome by remember { mutableStateOf<Exporter.Batch?>(null) }
+    val exportStop = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     var showSettings by remember { mutableStateOf(false) }
     val prefs = remember { ToolPrefs(context) }
     var sort by remember { mutableStateOf(prefs.librarySort) }
@@ -320,6 +325,39 @@ fun LibraryScreen(
         else -> all?.filter { it.folderId == current }
     }.orEmpty().let { if (recentView && !searching) it else it.sortedForLibrary(sort, sortReversed) }
     val picked = Picked(here.filter { it.id in selNb }, subFolders.filter { it.id in selF })
+    // da esportare: i quaderni scelti, poi quelli dentro le cartelle scelte (anche nelle sottocartelle)
+    val toExport = run {
+        val inside = HashSet<String>()
+        var level = picked.folders.map { it.id }
+        while (level.isNotEmpty()) {
+            inside += level
+            level = folders.filter { it.parentId in level && it.id !in inside }.map { it.id }
+        }
+        picked.notebooks + all.orEmpty().filter { it.folderId in inside && it.id !in selNb }.sortedForLibrary(sort, sortReversed)
+    }
+
+    // un PDF per quaderno, condivisi tutti insieme (Drive, Telegram, email…)
+    fun startExport(list: List<NotebookMeta>) {
+        if (exportProgress != null || list.isEmpty()) return
+        exportStop.set(false)
+        exportProgress = SyncProgress(0, list.size, "")
+        scope.launch {
+            val r = try {
+                withContext(AppIo.serial) {
+                    Exporter.exportPdfs(context, list, cancelled = exportStop::get) { done, total, title ->
+                        exportProgress = SyncProgress(done, total, title, stopping = exportStop.get())
+                    }
+                }
+            } catch (e: Exception) {
+                Exporter.Batch(emptyList(), list.map { it.title }, cancelled = false)
+            } finally {
+                exportProgress = null
+            }
+            if (r.cancelled) return@launch
+            if (r.files.isNotEmpty()) Exporter.share(context, r.files, "application/pdf")
+            if (r.failed.isNotEmpty()) exportOutcome = r
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -342,6 +380,11 @@ fun LibraryScreen(
                     onColor = { toColor = picked.folders },
                     onMove = { toMove = picked },
                     onDelete = { toDelete = picked },
+                    canExport = toExport.isNotEmpty(),
+                    onExport = {
+                        startExport(toExport)
+                        clearSelection()
+                    },
                 )
             }
         },
@@ -573,6 +616,41 @@ fun LibraryScreen(
             o,
             onPick = { syncOutcome = null; pickFolder() },
             onDismiss = { syncOutcome = null },
+        )
+    }
+
+    exportProgress?.let { p ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(if (p.total > 1) "Esporto ${minOf(p.done + 1, p.total)} di ${p.total}…" else "Esportazione…") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.LinearProgressIndicator(progress = { p.done / p.total.toFloat() }, modifier = Modifier.fillMaxWidth())
+                    Text(if (p.stopping) "Mi fermo dopo questo quaderno…" else p.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = {
+                    exportStop.set(true)
+                    exportProgress = SyncProgress(p.done, p.total, p.title, stopping = true)
+                }, enabled = !p.stopping) { Text("Interrompi") }
+            },
+        )
+    }
+
+    exportOutcome?.let { r ->
+        AlertDialog(
+            onDismissRequest = { exportOutcome = null },
+            title = { Text(if (r.files.isEmpty()) "Esportazione non riuscita" else "Esportazione fatta in parte") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (r.files.isNotEmpty()) Text(if (r.files.size == 1) "1 quaderno esportato." else "${r.files.size} quaderni esportati.")
+                    Text("Non riusciti (${r.failed.size}):", style = MaterialTheme.typography.titleSmall)
+                    r.failed.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { exportOutcome = null }) { Text("OK") } },
         )
     }
 

@@ -2,6 +2,7 @@ package com.caro.tratto.export
 
 import android.app.Activity
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -14,7 +15,9 @@ import com.caro.tratto.data.ImageLoader
 import com.caro.tratto.data.NotebookRepository
 import com.caro.tratto.data.PdfPages
 import com.caro.tratto.model.NotebookDocument
+import com.caro.tratto.model.NotebookMeta
 import com.caro.tratto.model.PageImage
+import com.caro.tratto.model.PageLink
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.roundToInt
@@ -51,13 +54,15 @@ object Exporter {
         pageIndices: List<Int>? = null,
         /** Collegamenti verso altri quaderni (solo nella copia sincronizzata, dove i PDF hanno un posto). */
         remote: (com.caro.tratto.model.PageLink) -> PdfLinks.Remote? = { null },
+        /** Nome del file al posto di quello che viene dal titolo (esportando più quaderni insieme). */
+        name: String? = null,
     ): File {
         val indices = pageIndices ?: doc.pages.indices.toList()
         val suffix = when {
             pageIndices == null || indices.size == doc.pages.size -> ""
             else -> "_p" + ranges(indices)
         }
-        val file = File(exportsDir(context), "${safeName(doc.meta.title)}$suffix.pdf")
+        val file = File(exportsDir(context), name ?: "${safeName(doc.meta.title)}$suffix.pdf")
         val source = NotebookRepository(context).pdfFile(doc.meta.id)
         if (doc.meta.fromPdf && source.exists()) {
             val images = ExportImages(context, doc, dpi = 200)
@@ -73,6 +78,54 @@ object Exporter {
         runCatching { PdfLinks.add(context, doc, indices, file, remote) }
             .onFailure { android.util.Log.w("Tratto", "collegamenti nel PDF", it) }
         return file
+    }
+
+    /** Esito di [exportPdfs]: i PDF fatti, nell'ordine dei quaderni; i titoli non riusciti; se è stata interrotta. */
+    class Batch(val files: List<File>, val failed: List<String>, val cancelled: Boolean)
+
+    /**
+     * Più quaderni insieme, un PDF ciascuno, con nomi tutti diversi ("Titolo", "Titolo (2)"…).
+     * I collegamenti verso un altro dei quaderni esportati portano al suo PDF: salvati nella stessa
+     * cartella restano cliccabili (se il lettore PDF lo permette); quelli verso gli altri quaderni no.
+     */
+    fun exportPdfs(
+        context: Context,
+        notebooks: List<NotebookMeta>,
+        cancelled: () -> Boolean = { false },
+        onProgress: (done: Int, total: Int, title: String) -> Unit = { _, _, _ -> },
+    ): Batch {
+        val repo = NotebookRepository(context)
+        val used = HashSet<String>()
+        val names = notebooks.associate { nb ->
+            val base = safeName(nb.title)
+            var name = base
+            var k = 2
+            while (!used.add(name.lowercase())) name = "$base (${k++})"
+            nb.id to "$name.pdf"
+        }
+        val byId = notebooks.associateBy { it.id }
+        val pageIds = HashMap<String, List<String>>()   // id del quaderno → id delle sue pagine, in ordine
+        val remote: (PageLink) -> PdfLinks.Remote? = remote@{ l ->
+            val id = l.notebookId ?: return@remote null
+            val meta = byId[id] ?: return@remote null
+            val ids = pageIds.getOrPut(id) { runCatching { repo.readRaw(id).raw.pages.map { it.id } }.getOrDefault(emptyList()) }
+            val page = ids.indexOf(l.pageId).takeIf { it >= 0 } ?: l.pageIndex.coerceIn(0, maxOf(0, meta.pageCount - 1))
+            PdfLinks.Remote(names.getValue(id), page, meta.format.heightPt.toFloat(), pointUsable = !meta.fromPdf)
+        }
+        val files = ArrayList<File>()
+        val failed = ArrayList<String>()
+        for ((i, nb) in notebooks.withIndex()) {
+            if (cancelled()) return Batch(files, failed, cancelled = true)
+            onProgress(i, notebooks.size, nb.title)
+            try {
+                files += exportPdf(context, repo.build(repo.readRaw(nb.id)).doc, remote = remote, name = names.getValue(nb.id))
+            } catch (e: Exception) {
+                android.util.Log.w("Tratto", "export: ${nb.title}", e)
+                failed += nb.title
+            }
+        }
+        onProgress(notebooks.size, notebooks.size, "")
+        return Batch(files, failed, cancelled = false)
     }
 
     /** Pagine del quaderno disegnate da Android (PdfDocument): foglio, foto e inchiostro vettoriali. */
@@ -137,6 +190,8 @@ object Exporter {
         }
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         val chooser = Intent.createChooser(intent, "Condividi")
+        // Tratto stesso no: riceverebbe i suoi PDF e li importerebbe come quaderni nuovi
+        chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context, com.caro.tratto.MainActivity::class.java)))
         if (context !is Activity) chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(chooser)
     }

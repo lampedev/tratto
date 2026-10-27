@@ -12,8 +12,9 @@ android {
         applicationId = "com.caro.tratto"
         minSdk = 34
         targetSdk = 36
-        versionCode = 104
-        versionName = "1.4"
+        // dalla 1.4.1: maggiore·1000 + minore·10 + correzione (1.4 era 104), così la 1.5 sarà 1050
+        versionCode = 1041
+        versionName = "1.4.1"
     }
 
     buildTypes {

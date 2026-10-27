@@ -109,6 +109,9 @@ internal fun SelectionBar(
     onColor: () -> Unit,
     onMove: () -> Unit,
     onDelete: () -> Unit,
+    /** Ci sono quaderni da esportare: scelti o dentro le cartelle scelte. */
+    canExport: Boolean = false,
+    onExport: () -> Unit = {},
 ) {
     val nb = picked.notebooks
     val allFav = nb.isNotEmpty() && nb.all { it.favorite }
@@ -128,6 +131,7 @@ internal fun SelectionBar(
             BarAction(TrattoIcons.Rename, "Rinomina", enabled = picked.size == 1, onClick = onRename)
             BarAction(TrattoIcons.Palette, "Colore", enabled = picked.folders.isNotEmpty(), onClick = onColor)
             BarAction(TrattoIcons.MoveTo, "Sposta", enabled = picked.size > 0, onClick = onMove)
+            BarAction(TrattoIcons.Share, "Esporta", enabled = canExport, onClick = onExport)
             BarAction(
                 TrattoIcons.Trash,
                 "Elimina",

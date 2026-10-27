@@ -11,7 +11,7 @@ Inchiostro a bassa latenza, PDF **vettoriali** nitidi a qualsiasi zoom, tutto of
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)
 ![androidx.ink](https://img.shields.io/badge/androidx.ink-1.1-1E63D6)
-![Versione](https://img.shields.io/badge/versione-1.4-D97757)
+![Versione](https://img.shields.io/badge/versione-1.4.1-D97757)
 ![Permessi](https://img.shields.io/badge/permessi-nessuno-2E7D32)
 
 </div>
@@ -121,11 +121,12 @@ qualsiasi tablet Android 14+ con un pennino.
 - Cartelle annidate in 12 colori, quaderni **preferiti** sempre in cima, **tag** colorati e **ricerca** in tutte le cartelle, senza badare a maiuscole e accenti.
 - **Recenti**: i quaderni aperti di recente si riaprono sulla pagina dove li avevi lasciati.
 - Ordine per nome ("Lezione 2" viene prima di "Lezione 10"), per data di creazione o per ultima modifica.
-- Selezione multipla con pressione lunga: sposta, rinomina, colora, aggiungi tag, elimina.
+- Selezione multipla con pressione lunga: sposta, rinomina, colora, aggiungi tag, esporta, elimina.
 - Copertine generate dalla prima pagina.
 
 ### 📤 Esportazione e sincronizzazione
 - PDF vettoriale del quaderno intero o di **pagine scelte** (per esempio "1-5, 8", "solo con appunti", "solo con segnalibro"), oppure PNG, tramite il menu Condividi di Android.
+- **Più quaderni insieme** dalla selezione multipla della libreria: un PDF per quaderno, anche di intere cartelle con le sottocartelle. I collegamenti fra i quaderni esportati insieme restano cliccabili se i PDF finiscono nella stessa cartella.
 - **Sincronizzazione con una cartella**, per esempio su Google Drive:
   - Tratto copia il PDF di ogni quaderno ripetendo lo stesso albero di cartelle.
   - Riscrive solo i quaderni cambiati e segue rinomine, spostamenti ed eliminazioni.
@@ -237,7 +238,7 @@ Ogni versione nuova di `strokes.bin` legge anche quelle vecchie.
 
 ## Stato
 
-Il progetto è giovane (versione **1.4**) e va avanti a piccoli passi: un miglioramento per versione, provato in
+Il progetto è giovane (versione **1.4.1**) e va avanti a piccoli passi: un miglioramento per versione, provato in
 emulatore e poi sul tablet. Le prossime idee:
 
 - caselle di testo (servirebbero anche per il testo digitato delle note di Samsung Notes);
